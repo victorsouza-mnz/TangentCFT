@@ -113,6 +113,8 @@ def main():
         read_slt=read_slt,
         queries_directory_path=queries_directory_path,
     )
+    # TODO entender por que o arg nao funciona para o train_model
+    train_model = False
     if train_model:
         dictionary_formula_tuples_collection = system.train_model(
             map_file_path=map_file_path,
@@ -143,6 +145,8 @@ def main():
             ignore_full_relative_path=ignore_full_relative_path,
             tokenize_all=tokenize_all,
             tokenize_number=tokenize_number,
+            use_preprocessed=use_preprocessed,
+            preprocessed_file=preprocessed_file,
         )
     if do_retrieval:
         retrieval_result = system.retrieval(

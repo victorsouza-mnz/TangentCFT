@@ -88,14 +88,24 @@ class TangentCFTBackEnd:
         ignore_full_relative_path=True,
         tokenize_all=False,
         tokenize_number=True,
+        use_preprocessed=False,
+        preprocessed_file=None,
     ):
         """Loads tangent-cft models and encoder map. While encoding the dataset, as new characters can be visited,
         the encoder map is saved again"""
         self.module = TangentCFTModule(model_file_path)
         self.__load_encoder_map(map_file_path)
-        dictionary_formula_tuples_collection = self.__encode_train_tuples(
-            embedding_type, ignore_full_relative_path, tokenize_all, tokenize_number
-        )
+
+        if use_preprocessed and preprocessed_file and os.path.isfile(preprocessed_file):
+            print(f"Carregando dados pré-processados do arquivo {preprocessed_file}...")
+            dictionary_formula_tuples_collection = self.__load_preprocessed_data(
+                preprocessed_file
+            )
+        else:
+            dictionary_formula_tuples_collection = self.__encode_train_tuples(
+                embedding_type, ignore_full_relative_path, tokenize_all, tokenize_number
+            )
+
         self.__save_encoder_map(map_file_path)
         return dictionary_formula_tuples_collection
 
