@@ -2,7 +2,7 @@ import logging
 import os
 import numpy
 from Configuration.configuration import Configuration
-from tangent_cft_model import TangentCftModel
+from lib.tangentCFT.model import TangentCftModel
 from torch.autograd import Variable
 import torch
 import torch.nn.functional as F
@@ -13,7 +13,7 @@ import torch.nn.functional as F
 # use_cuda = torch.cuda.is_available()
 
 
-class TangentCFTModule:
+class TangentCFTService:
     def __init__(self, model_file_path=None):
         """
         Take the configuration file path, this file define where the tangent_fasttext formulas are (those

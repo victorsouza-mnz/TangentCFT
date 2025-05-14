@@ -1,0 +1,10 @@
+
+
+lib/tangentCFT/trained_data
+
+data/arqmath
+
+
+Embedding_Preprocessing/slt_encoder.tsv
+
+opt_model.wv.vectors.npy.wv.vectors_vocab.npy
