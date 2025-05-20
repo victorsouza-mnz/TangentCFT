@@ -114,7 +114,7 @@ def main():
         queries_directory_path=queries_directory_path,
     )
     # TODO entender por que o arg nao funciona para o train_model
-    train_model = False
+    train_model = True
     if train_model:
         dictionary_formula_tuples_collection = system.train_model(
             map_file_path=map_file_path,

@@ -1,11 +1,10 @@
 from elasticsearch import Elasticsearch
-import logging
 import numpy as np
 import json
 
 
 class ElasticsearchService:
-    def __init__(self, host="localhost", port=9200, index_name="questions"):
+    def __init__(self, host="localhost", port=9200, index_name="posts"):
         """
         Initialize Elasticsearch service.
 
@@ -14,129 +13,367 @@ class ElasticsearchService:
             port: Elasticsearch port
             index_name: Name of the index to use
         """
-        self.es = Elasticsearch([f"http://{host}:{port}"])
+        self.es = Elasticsearch(
+            [f"http://{host}:{port}"],
+            timeout=60,  # Increase timeout to 60 seconds
+            retry_on_timeout=True,
+            max_retries=3,
+        )
         self.index_name = index_name
-        self.logger = logging.getLogger(__name__)
 
         # Create index if it doesn't exist
-        if not self.es.indices.exists(index=self.index_name):
+        if not self.index_exists():
             self.create_index()
 
+    def index_exists(self):
+        """Check if the index exists"""
+        return self.es.indices.exists(index=self.index_name)
+
+    def get_last_indexed_post(self):
+        """Get the last indexed post to resume indexing"""
+        try:
+            query = {"sort": [{"post_id": {"order": "desc"}}], "size": 1}
+            result = self.es.search(index=self.index_name, body=query)
+            if result["hits"]["total"]["value"] > 0:
+                return result["hits"]["hits"][0]["_source"]
+            return None
+        except Exception as e:
+            print(f"Error getting last indexed post: {str(e)}")
+            return None
+
+    def create_index_with_checkpoint(self):
+        """Create the index with the same mappings as create_index"""
+        self.create_index()
+
     def create_index(self):
-        """Create the Elasticsearch index with appropriate mappings for formula vectors."""
+        """Create the Elasticsearch index with appropriate mappings for posts and formulas."""
         mapping = {
             "mappings": {
                 "properties": {
-                    "formula_id": {"type": "keyword"},
-                    "title": {"type": "text"},
-                    "content": {"type": "text"},
-                    "formula_vector": {
+                    "post_id": {"type": "keyword"},
+                    "text": {"type": "text"},
+                    "text_without_formula": {"type": "text"},
+                    "text_without_formula_vector": {
                         "type": "dense_vector",
-                        "dims": 300,  # Assuming 300 dimensions based on your model
+                        "dims": 300,
                         "index": True,
                         "similarity": "cosine",
                     },
+                    "formulas_slt_vectors": {
+                        "type": "nested",
+                        "properties": {
+                            "vector": {
+                                "type": "dense_vector",
+                                "dims": 300,
+                                "index": True,
+                                "similarity": "cosine",
+                            }
+                        },
+                    },
+                    "formulas_slt_type_vectors": {
+                        "type": "nested",
+                        "properties": {
+                            "vector": {
+                                "type": "dense_vector",
+                                "dims": 300,
+                                "index": True,
+                                "similarity": "cosine",
+                            }
+                        },
+                    },
+                    "formulas_opt_vectors": {
+                        "type": "nested",
+                        "properties": {
+                            "vector": {
+                                "type": "dense_vector",
+                                "dims": 300,
+                                "index": True,
+                                "similarity": "cosine",
+                            }
+                        },
+                    },
+                    "formulas": {"type": "text", "index": True},
+                    "formulas_ids": {"type": "integer"},
+                    "formulas_mathml": {"type": "text", "index": True},
+                    "formulas_latex": {"type": "text", "index": True},
                 }
             }
         }
 
         try:
             self.es.indices.create(index=self.index_name, body=mapping)
-            self.logger.info(f"Created index {self.index_name}")
+            print(f"Created index {self.index_name}")
         except Exception as e:
-            self.logger.error(f"Error creating index: {str(e)}")
+            print(f"Error creating index: {str(e)}")
 
-    def index_formula(self, formula_id, title, content, vector):
+    def index_post(
+        self,
+        post_id,
+        text,
+        text_without_formula=None,
+        text_without_formula_vector=None,
+        formulas_slt_vectors=None,
+        formulas_slt_type_vectors=None,
+        formulas_opt_vectors=None,
+        formulas=None,
+        formulas_ids=None,
+        formulas_mathml=None,
+        formulas_latex=None,
+    ):
         """
-        Index a formula in Elasticsearch.
+        Index a post in Elasticsearch.
 
         Args:
-            formula_id: Unique identifier for the formula
-            title: Title or name of the document containing the formula
-            content: The actual formula content
-            vector: Vector representation of the formula (numpy array)
+            post_id: Unique identifier for the post
+            text: The full post text
+            text_without_formula: Text with formulas removed
+            text_without_formula_vector: Vector of text without formulas
+            formulas_slt_vectors: List of SLT formula vectors
+            formulas_slt_type_vectors: List of SLT type formula vectors
+            formulas_opt_vectors: List of OPT formula vectors
+            formulas: List of formula strings
+            formulas_ids: List of formula IDs
+            formulas_mathml: List of MathML formula strings
+            formulas_latex: List of LaTeX formula strings
         """
-        document = {
-            "formula_id": formula_id,
-            "title": title,
-            "content": content,
-            "formula_vector": (
-                vector.tolist() if isinstance(vector, np.ndarray) else vector
-            ),
-        }
+        document = {"post_id": post_id, "text": text}
+
+        if text_without_formula:
+            document["text_without_formula"] = text_without_formula
+
+        if text_without_formula_vector is not None:
+            document["text_without_formula_vector"] = (
+                text_without_formula_vector.tolist()
+                if isinstance(text_without_formula_vector, np.ndarray)
+                else text_without_formula_vector
+            )
+
+        for field_name, field_value in [
+            ("formulas_slt_vectors", formulas_slt_vectors),
+            ("formulas_slt_type_vectors", formulas_slt_type_vectors),
+            ("formulas_opt_vectors", formulas_opt_vectors),
+        ]:
+            if field_value is not None:
+                processed_vectors = []
+                for vector in field_value:
+                    processed_vector = {
+                        "vector": (
+                            vector.tolist()
+                            if isinstance(vector, np.ndarray)
+                            else vector
+                        )
+                    }
+                    processed_vectors.append(processed_vector)
+                document[field_name] = processed_vectors
+
+        if formulas:
+            document["formulas"] = formulas
+
+        if formulas_ids:
+            document["formulas_ids"] = formulas_ids
+
+        if formulas_mathml:
+            document["formulas_mathml"] = formulas_mathml
+
+        if formulas_latex:
+            document["formulas_latex"] = formulas_latex
 
         try:
-            self.es.index(index=self.index_name, id=formula_id, document=document)
+            self.es.index(index=self.index_name, id=post_id, document=document)
             return True
         except Exception as e:
-            self.logger.error(f"Error indexing formula {formula_id}: {str(e)}")
+            print(f"Error indexing post {post_id}: {str(e)}")
             return False
 
-    def bulk_index_formulas(self, formulas_data):
+    def bulk_index_posts(self, posts_data):
         """
-        Bulk index formulas for better performance.
+        Bulk index posts for better performance.
 
         Args:
-            formulas_data: List of dictionaries with formula_id, title, content, and vector
+            posts_data: List of post dictionaries
         """
-        if not formulas_data:
+        if not posts_data:
             return True
 
         bulk_data = []
-        for formula in formulas_data:
+        for post in posts_data:
             # Action description
-            action = {
-                "index": {"_index": self.index_name, "_id": formula["formula_id"]}
-            }
-            # Convert numpy array to list if needed
-            if isinstance(formula.get("vector"), np.ndarray):
-                formula["formula_vector"] = formula["vector"].tolist()
-            else:
-                formula["formula_vector"] = formula["vector"]
+            action = {"index": {"_index": self.index_name, "_id": post["post_id"]}}
 
-            # Remove the original vector field
-            if "vector" in formula:
-                del formula["vector"]
+            # Process text_without_formula_vector if present
+            if "text_without_formula_vector" in post and isinstance(
+                post["text_without_formula_vector"], np.ndarray
+            ):
+                post["text_without_formula_vector"] = post[
+                    "text_without_formula_vector"
+                ].tolist()
+
+            # Process formula vectors if present
+            for field_name in [
+                "formulas_slt_vectors",
+                "formulas_slt_type_vectors",
+                "formulas_opt_vectors",
+            ]:
+                if field_name in post:
+                    processed_vectors = []
+                    for vector in post[field_name]:
+                        if isinstance(vector, np.ndarray):
+                            processed_vector = {"vector": vector.tolist()}
+                        elif (
+                            isinstance(vector, dict)
+                            and "vector" in vector
+                            and isinstance(vector["vector"], np.ndarray)
+                        ):
+                            processed_vector = {"vector": vector["vector"].tolist()}
+                        else:
+                            # Assuming vector is already in the correct format or a raw list/vector
+                            processed_vector = {"vector": vector}
+                        processed_vectors.append(processed_vector)
+                    post[field_name] = processed_vectors
 
             bulk_data.append(action)
-            bulk_data.append(formula)
+            bulk_data.append(post)
 
         try:
             response = self.es.bulk(operations=bulk_data, refresh=True)
             return not response.get("errors", False)
         except Exception as e:
-            self.logger.error(f"Error bulk indexing formulas: {str(e)}")
+            print(f"Error bulk indexing posts: {str(e)}")
             return False
 
-    def search_formulas(self, query_vector, size=10):
+    def update_post(self, post_id, update_data):
         """
-        Search for similar formulas using vector similarity.
+        Update specific fields of a post.
 
         Args:
-            query_vector: Vector representation of the query formula
+            post_id: ID of the post to update
+            update_data: Dictionary of fields to update
+        """
+        try:
+            # Process text_without_formula_vector if present
+            if "text_without_formula_vector" in update_data and isinstance(
+                update_data["text_without_formula_vector"], np.ndarray
+            ):
+                update_data["text_without_formula_vector"] = update_data[
+                    "text_without_formula_vector"
+                ].tolist()
+
+            # Process formula vectors if present
+            for field_name in [
+                "formulas_slt_vectors",
+                "formulas_slt_type_vectors",
+                "formulas_opt_vectors",
+            ]:
+                if field_name in update:
+                    processed_vectors = []
+                    for vector in update[field_name]:
+                        if isinstance(vector, np.ndarray):
+                            processed_vector = {"vector": vector.tolist()}
+                        elif (
+                            isinstance(vector, dict)
+                            and "vector" in vector
+                            and isinstance(vector["vector"], np.ndarray)
+                        ):
+                            processed_vector = {"vector": vector["vector"].tolist()}
+                        else:
+                            # Assuming vector is already in the correct format or a raw list/vector
+                            processed_vector = {"vector": vector}
+                        processed_vectors.append(processed_vector)
+                    update_data[field_name] = processed_vectors
+
+            self.es.update(index=self.index_name, id=post_id, doc=update_data)
+            return True
+        except Exception as e:
+            print(f"Error updating post {post_id}: {str(e)}")
+            return False
+
+    def bulk_update_posts(self, updates):
+        """
+        Bulk update posts.
+
+        Args:
+            updates: List of dictionaries with post_id and fields to update
+        """
+        if not updates:
+            return True
+
+        bulk_data = []
+        for update in updates:
+            post_id = update.pop("post_id")
+
+            # Process text_without_formula_vector if present
+            if "text_without_formula_vector" in update and isinstance(
+                update["text_without_formula_vector"], np.ndarray
+            ):
+                update["text_without_formula_vector"] = update[
+                    "text_without_formula_vector"
+                ].tolist()
+
+            # Process formula vectors if present
+            for field_name in [
+                "formulas_slt_vectors",
+                "formulas_slt_type_vectors",
+                "formulas_opt_vectors",
+            ]:
+                if field_name in update:
+                    processed_vectors = []
+                    for vector in update[field_name]:
+                        if isinstance(vector, np.ndarray):
+                            processed_vector = {"vector": vector.tolist()}
+                        elif (
+                            isinstance(vector, dict)
+                            and "vector" in vector
+                            and isinstance(vector["vector"], np.ndarray)
+                        ):
+                            processed_vector = {"vector": vector["vector"].tolist()}
+                        else:
+                            # Assuming vector is already in the correct format or a raw list/vector
+                            processed_vector = {"vector": vector}
+                        processed_vectors.append(processed_vector)
+                    update[field_name] = processed_vectors
+
+            action = {"update": {"_index": self.index_name, "_id": post_id}}
+            doc = {"doc": update}
+
+            bulk_data.append(action)
+            bulk_data.append(doc)
+
+        try:
+            response = self.es.bulk(operations=bulk_data, refresh=True)
+            return not response.get("errors", False)
+        except Exception as e:
+            print(f"Error bulk updating posts: {str(e)}")
+            return False
+
+    def search_posts(self, query_vector, field="text_without_formula_vector", size=10):
+        """
+        Search for similar posts using vector similarity.
+
+        Args:
+            query_vector: Vector for similarity search
+            field: Vector field to search on
             size: Number of results to return
 
         Returns:
-            List of formula documents sorted by similarity
+            List of posts sorted by similarity
         """
         if isinstance(query_vector, np.ndarray):
             query_vector = query_vector.tolist()
 
         query = {
             "knn": {
-                "field": "formula_vector",
+                "field": field,
                 "query_vector": query_vector,
                 "k": size,
                 "num_candidates": size * 2,
-            },
-            "_source": ["formula_id", "title", "content"],
+            }
         }
 
         try:
             response = self.es.search(index=self.index_name, knn=query)
             return response["hits"]["hits"]
         except Exception as e:
-            self.logger.error(f"Error searching formulas: {str(e)}")
+            print(f"Error searching posts: {str(e)}")
             return []
 
     def delete_index(self):
@@ -145,5 +382,5 @@ class ElasticsearchService:
             self.es.indices.delete(index=self.index_name)
             return True
         except Exception as e:
-            self.logger.error(f"Error deleting index: {str(e)}")
+            print(f"Error deleting index: {str(e)}")
             return False
