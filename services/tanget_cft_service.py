@@ -6,6 +6,7 @@ from lib.tangentCFT.model import TangentCftModel
 from torch.autograd import Variable
 import torch
 import torch.nn.functional as F
+from lib.tangentCFT.touple_encoder.encoder import EncoderManager
 
 # Remover ou comentar esta linha
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -14,18 +15,20 @@ import torch.nn.functional as F
 
 
 class TangentCFTService:
-    def __init__(self, model_file_path=None):
+    def __init__(
+        self,
+        model_file_path=None,
+    ):
         """
-        Take the configuration file path, this file define where the tangent_fasttext formulas are (those
-        tangent-tuple encoded as char to be fed to fasttext). Both queries and collection dataset are in the same
-        location. Also the destination where the queries vectors and all the other wikipedia formula vectors should
-        be saved is defined in this file.
-        Finally this file has the hyper_parameter setting for fasttext.
+        Inicializa o serviço TangentCFT com modelo e encoder
         """
         self.model = TangentCftModel()
         if model_file_path is not None:
             print("Loading the model")
             self.model.load_model(model_file_path)
+
+        # Usar o singleton EncoderManager
+        self.encoder_manager = EncoderManager()
 
     def train_model(self, configuration, lst_lst_encoded_tuples):
         print("Setting Configuration")
@@ -75,6 +78,18 @@ class TangentCFTService:
 
     def get_query_vector(self, lst_encoded_tuples):
         return self.__get_vector_representation(lst_encoded_tuples)
+
+    def encode_formula_tuples(self, formula_tuples):
+        """
+        Encodifica as tuplas da fórmula usando o EncoderManager
+
+        Args:
+            formula_tuples: Lista de tuplas extraídas de uma fórmula
+
+        Returns:
+            Lista de tuplas encodificadas
+        """
+        return self.encoder_manager.encode_tuples(formula_tuples)
 
     @staticmethod
     def formula_retrieval(collection_tensor, formula_index, query_vector, top_k=10):

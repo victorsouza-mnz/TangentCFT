@@ -8,3 +8,11 @@ data/arqmath
 Embedding_Preprocessing/slt_encoder.tsv
 
 opt_model.wv.vectors.npy.wv.vectors_vocab.npy
+
+lib/tangentCFT/touple_encoder/slt_encoder.tsv
+
+lib/tangentCFT/touple_encoder/opt_encoder.tsv
+
+lib/tangentCFT/touple_encoder/slt_type_encoder.tsv
+
+lib/tangentCFT/trained_model/*

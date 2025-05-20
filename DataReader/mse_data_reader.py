@@ -1,7 +1,10 @@
 from abc import ABC
 
 from DataReader.abstract_data_reader import AbstractDataReader
-from TangentS.Tuple_Extraction import latex_math_to_slt_tuples, latex_math_to_opt_tuples
+from lib.tangentS.Tuple_Extraction import (
+    latex_math_to_slt_tuples,
+    latex_math_to_opt_tuples,
+)
 
 
 class MSEDataReader(AbstractDataReader, ABC):
@@ -10,7 +13,9 @@ class MSEDataReader(AbstractDataReader, ABC):
         self.collection_file_path = collection_file_path
         super()
 
-    def get_collection(self, ):
+    def get_collection(
+        self,
+    ):
         except_count = 0
         dictionary_formula_tuples = {}
         file = open(self.collection_file_path)
@@ -23,7 +28,7 @@ class MSEDataReader(AbstractDataReader, ABC):
                     while "$$" not in line:
                         temp += line
                         line = file.readline()
-                    line = (temp+"\n"+line).strip("\n")
+                    line = (temp + "\n" + line).strip("\n")
                 if "USD" in line or "<p" in line or "<blockquote" in line:
                     line = file.readline().strip("\n")
                     continue
@@ -43,7 +48,9 @@ class MSEDataReader(AbstractDataReader, ABC):
         print(except_count)
         return dictionary_formula_tuples
 
-    def get_collection2(self, ):
+    def get_collection2(
+        self,
+    ):
         except_count = 0
         dictionary_formula_slt_tuple = {}
         file = open(self.collection_file_path)
@@ -54,7 +61,7 @@ class MSEDataReader(AbstractDataReader, ABC):
         while i < len(text_parts):
             try:
                 latex_string = text_parts[i]
-                formula_id = text_parts[i+1]
+                formula_id = text_parts[i + 1]
                 i += 3
                 if self.read_slt:
                     lst_tuples = latex_math_to_slt_tuples(latex_string)
@@ -67,6 +74,8 @@ class MSEDataReader(AbstractDataReader, ABC):
                 i += 3
         print(except_count)
         return dictionary_formula_slt_tuple
+
+
 #
 # def main():
 #     a = MSEDataReader("../formula_latex_map.csv")

@@ -45,67 +45,6 @@ class ElasticsearchService:
         """Create the index with the same mappings as create_index"""
         self.create_index()
 
-    def create_index(self):
-        """Create the Elasticsearch index with appropriate mappings for posts and formulas."""
-        mapping = {
-            "mappings": {
-                "properties": {
-                    "post_id": {"type": "keyword"},
-                    "text": {"type": "text"},
-                    "text_without_formula": {"type": "text"},
-                    "text_without_formula_vector": {
-                        "type": "dense_vector",
-                        "dims": 300,
-                        "index": True,
-                        "similarity": "cosine",
-                    },
-                    "formulas_slt_vectors": {
-                        "type": "nested",
-                        "properties": {
-                            "vector": {
-                                "type": "dense_vector",
-                                "dims": 300,
-                                "index": True,
-                                "similarity": "cosine",
-                            }
-                        },
-                    },
-                    "formulas_slt_type_vectors": {
-                        "type": "nested",
-                        "properties": {
-                            "vector": {
-                                "type": "dense_vector",
-                                "dims": 300,
-                                "index": True,
-                                "similarity": "cosine",
-                            }
-                        },
-                    },
-                    "formulas_opt_vectors": {
-                        "type": "nested",
-                        "properties": {
-                            "vector": {
-                                "type": "dense_vector",
-                                "dims": 300,
-                                "index": True,
-                                "similarity": "cosine",
-                            }
-                        },
-                    },
-                    "formulas": {"type": "text", "index": True},
-                    "formulas_ids": {"type": "integer"},
-                    "formulas_mathml": {"type": "text", "index": True},
-                    "formulas_latex": {"type": "text", "index": True},
-                }
-            }
-        }
-
-        try:
-            self.es.indices.create(index=self.index_name, body=mapping)
-            print(f"Created index {self.index_name}")
-        except Exception as e:
-            print(f"Error creating index: {str(e)}")
-
     def index_post(
         self,
         post_id,
@@ -384,3 +323,127 @@ class ElasticsearchService:
         except Exception as e:
             print(f"Error deleting index: {str(e)}")
             return False
+
+    def create_index(self):
+        """Create the Elasticsearch index with appropriate mappings for posts and formulas."""
+        mapping = {
+            "settings": {
+                "analysis": {
+                    "filter": {
+                        "english_stop": {"type": "stop", "stopwords": "_english_"},
+                        "english_stemmer": {"type": "stemmer", "language": "english"},
+                        "keep_latex": {
+                            "type": "pattern_replace",
+                            "pattern": r"\\\\(\(|\[).*?\\\\(\)|\])",
+                            "replacement": "$0",
+                        },
+                    },
+                    "analyzer": {
+                        "exercise_analyser": {
+                            "type": "custom",
+                            "tokenizer": "standard",
+                            "filter": [
+                                "lowercase",
+                                "asciifolding",
+                                "trim",
+                                "english_stop",
+                                "english_stemmer",
+                                "keep_latex",
+                            ],
+                        }
+                    },
+                }
+            },
+            "mappings": {
+                "properties": {
+                    "post_id": {"type": "keyword"},
+                    "text": {"type": "text"},
+                    "text_latex_search": {
+                        "type": "text",
+                        "analyzer": "exercise_analyser",
+                    },
+                    "text_without_formula": {"type": "text"},
+                    "text_without_formula_vector": {
+                        "type": "dense_vector",
+                        "dims": 384,
+                        "index": True,
+                        "similarity": "cosine",
+                    },
+                    "formulas_slt_vectors": {
+                        "type": "nested",
+                        "properties": {
+                            "vector": {
+                                "type": "dense_vector",
+                                "dims": 300,
+                                "index": True,
+                                "similarity": "cosine",
+                            }
+                        },
+                    },
+                    "formulas_slt_type_vectors": {
+                        "type": "nested",
+                        "properties": {
+                            "vector": {
+                                "type": "dense_vector",
+                                "dims": 300,
+                                "index": True,
+                                "similarity": "cosine",
+                            }
+                        },
+                    },
+                    "formulas_opt_vectors": {
+                        "type": "nested",
+                        "properties": {
+                            "vector": {
+                                "type": "dense_vector",
+                                "dims": 300,
+                                "index": True,
+                                "similarity": "cosine",
+                            }
+                        },
+                    },
+                    "formulas": {"type": "text", "index": True},
+                    "formulas_ids": {"type": "integer"},
+                    "formulas_mathml": {"type": "text", "index": True},
+                    "formulas_latex": {"type": "text", "index": True},
+                }
+            },
+        }
+
+        try:
+            self.es.indices.create(index=self.index_name, body=mapping)
+            print(f"Created index {self.index_name}")
+        except Exception as e:
+            print(f"Error creating index: {str(e)}")
+
+    def search_posts_after_id(self, last_post_id: int, size: int = 100):
+        body = {
+            "size": size,
+            "query": {"range": {"post_id": {"gt": last_post_id}}},
+            "sort": [{"post_id": "asc"}],
+        }
+
+        res = self.es.search(index=self.index_name, body=body)
+        return [hit["_source"] for hit in res["hits"]["hits"]]
+
+    def bulk_update_text_vector(self, posts: list):
+        from elasticsearch.helpers import bulk
+
+        actions = [
+            {
+                "_op_type": "update",
+                "_index": self.index_name,
+                "_id": post["post_id"],
+                "doc": {
+                    "text_without_formula_vector": post["text_without_formula_vector"]
+                },
+            }
+            for post in posts
+        ]
+
+        success, errors = bulk(self.es, actions, raise_on_error=False)
+
+        if errors:
+            print(f"{len(errors)} document(s) failed to index.")
+            for error in errors[:5]:  # mostra só os 5 primeiros
+                print(error)

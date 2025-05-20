@@ -5,18 +5,23 @@ from abc import ABC
 from tqdm import tqdm
 
 from DataReader.abstract_data_reader import AbstractDataReader
-from TangentS.math_tan.math_document import MathDocument
-from TangentS.math_tan.math_extractor import MathExtractor
+from lib.tangentS.math_tan.math_document import MathDocument
+from lib.tangentS.math_tan.math_extractor import MathExtractor
 
 
 class WikiDataReader(AbstractDataReader, ABC):
-    def __init__(self, collection_file_path, read_slt=True, queries_directory_path=None):
+    def __init__(
+        self, collection_file_path, read_slt=True, queries_directory_path=None
+    ):
         self.read_slt = read_slt
         self.collection_file_path = collection_file_path
+
         self.queries_directory_path = queries_directory_path
         super()
 
-    def get_collection(self, ):
+    def get_collection(
+        self,
+    ):
         """
         This method read the NTCIR-12 formulae in the collection.
         To handle formulae with special characters line 39 normalizes the unicode data.
@@ -30,16 +35,25 @@ class WikiDataReader(AbstractDataReader, ABC):
             temp_address = root + "/" + directory + "/Articles/"
             if not os.path.isdir(temp_address):
                 continue
-            
+
             for filename in tqdm(os.listdir(temp_address)):
                 file_path = temp_address + filename
-                parts = filename.split('/')
+                parts = filename.split("/")
                 file_name = os.path.splitext(parts[len(parts) - 1])[0]
                 try:
                     (ext, content) = MathDocument.read_doc_file(file_path)
-                    formulas = MathExtractor.parse_from_xml(content, 1, operator=(not self.read_slt), missing_tags=None,
-                                                            problem_files=None)
-                    temp = str(unicodedata.normalize('NFKD', file_name).encode('ascii', 'ignore'))
+                    formulas = MathExtractor.parse_from_xml(
+                        content,
+                        1,
+                        operator=(not self.read_slt),
+                        missing_tags=None,
+                        problem_files=None,
+                    )
+                    temp = str(
+                        unicodedata.normalize("NFKD", file_name).encode(
+                            "ascii", "ignore"
+                        )
+                    )
                     temp = temp[2:]
                     file_name = temp[:-1]
                     for key in formulas:
@@ -51,7 +65,9 @@ class WikiDataReader(AbstractDataReader, ABC):
 
         return dictionary_formula_tuples
 
-    def get_query(self, ):
+    def get_query(
+        self,
+    ):
         """
         This method reads the NTCIR-12 the queries.
         Note that the Tangent-CFT does not support queries with Wildcard,
@@ -60,11 +76,16 @@ class WikiDataReader(AbstractDataReader, ABC):
         except_count = 0
         dictionary_query_tuples = {}
         for j in range(1, 21):
-            temp_address = self.queries_directory_path + '/' + str(j) + '.html'
+            temp_address = self.queries_directory_path + "/" + str(j) + ".html"
             try:
                 (ext, content) = MathDocument.read_doc_file(temp_address)
-                formulas = MathExtractor.parse_from_xml(content, 1, operator=(not self.read_slt), missing_tags=None,
-                                                        problem_files=None)
+                formulas = MathExtractor.parse_from_xml(
+                    content,
+                    1,
+                    operator=(not self.read_slt),
+                    missing_tags=None,
+                    problem_files=None,
+                )
                 for key in formulas:
                     tuples = formulas[key].get_pairs(window=2, eob=True)
                     dictionary_query_tuples[j] = tuples

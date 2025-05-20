@@ -1,26 +1,27 @@
 """
-    Tangent
-    Copyright (c) 2013, 2015 David Stalnaker, Richard Zanibbi, Nidhin Pattaniyil, 
-                  Andrew Kane, Frank Tompa, Kenny Davila Castellanos
+Tangent
+Copyright (c) 2013, 2015 David Stalnaker, Richard Zanibbi, Nidhin Pattaniyil,
+              Andrew Kane, Frank Tompa, Kenny Davila Castellanos
 
-    This file is part of Tangent.
+This file is part of Tangent.
 
-    Tanget is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+Tanget is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    Tangent is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+Tangent is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with Tangent.  If not, see <http://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+along with Tangent.  If not, see <http://www.gnu.org/licenses/>.
 
-    Contact:
-        - Richard Zanibbi: rlaz@cs.rit.edu
+Contact:
+    - Richard Zanibbi: rlaz@cs.rit.edu
 """
+
 import os
 from concurrent.futures import ProcessPoolExecutor
 import csv
@@ -30,14 +31,16 @@ import codecs
 import time
 
 
-from TangentS.utility.Stats import Stats
-#from TangentS.math_tan.version03_index import Version03Index
-from TangentS.math_tan.math_extractor import MathExtractor
-from TangentS.utility.control import Control
-from TangentS.math_tan.math_document import MathDocument
-#from symbol_tree import SymbolTree
-#from Tan
-#from multiprocessing import Lock
+from lib.tangentS.utility.Stats import Stats
+
+# from lib.tangentS.math_tan.version03_index import Version03Index
+from lib.tangentS.math_tan.math_extractor import MathExtractor
+from lib.tangentS.utility.control import Control
+from lib.tangentS.math_tan.math_document import MathDocument
+
+# from symbol_tree import SymbolTree
+# from Tan
+# from multiprocessing import Lock
 sys.setrecursionlimit(10000)
 from sys import argv, exit
 import math_tan
@@ -48,6 +51,7 @@ Indexer is a standalone script that indexes a collection
 Supports mathml,.xhtml and tex files
 """
 
+
 def print_help_and_exit():
     """
     Prints usage statement
@@ -56,7 +60,9 @@ def print_help_and_exit():
     print("Usage: python index.py [<cntl-file>] or python index.py help")
     print("       default <cntl-file> is tangent.cntl")
     print()
-    print("where <cntl-file> is a tsv file that contains a list of parameter-value pairs")
+    print(
+        "where <cntl-file> is a tsv file that contains a list of parameter-value pairs"
+    )
     print("and must include at least the following entries:")
     print("     doc_list\\t<doc-id mapping file name>")
     print("and may optionally include:")
@@ -79,36 +85,48 @@ def read_file(filename, file_id, semantic, missing_tags=None, problem_files=None
     :rtype: list(SymbolTree)
     :return list of Symbol trees found in the file
     """
-    #s = time.time()
-    (ext,content) = MathDocument.read_doc_file(filename)
+    # s = time.time()
+    (ext, content) = MathDocument.read_doc_file(filename)
 
-    if ext == '.tex' and not semantic:
+    if ext == ".tex" and not semantic:
         t = MathExtractor.parse_from_tex(content, file_id)
-        #print("file %s took %s"%(file_id,time.time()-s))
+        # print("file %s took %s"%(file_id,time.time()-s))
         return [t], 0
-    elif ext in {'.xhtml', '.mathml', '.mml', '.html'}:
-        t, n_err = MathExtractor.parse_from_xml(content, file_id, operator=semantic, missing_tags=missing_tags,
-                                                problem_files=problem_files)
-        #print("file %s took %s per expr"%(file_id,(time.time()-s)/len(t)))
+    elif ext in {".xhtml", ".mathml", ".mml", ".html"}:
+        t, n_err = MathExtractor.parse_from_xml(
+            content,
+            file_id,
+            operator=semantic,
+            missing_tags=missing_tags,
+            problem_files=problem_files,
+        )
+        # print("file %s took %s per expr"%(file_id,(time.time()-s)/len(t)))
         for item in t:
-            #slttuplesList = SymbolTree.get_pairs(item, window='all')
+            # slttuplesList = SymbolTree.get_pairs(item, window='all')
             print(item)
         return t, n_err
     else:
-        if ext == '.tex' and semantic:
+        if ext == ".tex" and semantic:
             if "invalid_filetype" not in problem_files:
                 problem_files["invalid_filetype"] = set([filename])
             else:
                 problem_files["invalid_filetype"].add(filename)
 
-            print('invalid file format %s for %s in operator tree mode' % (ext, filename))
+            print(
+                "invalid file format %s for %s in operator tree mode" % (ext, filename)
+            )
         else:
-            problem_files["unknown_filetype"] = problem_files.get("unknown_filetype", set())
+            problem_files["unknown_filetype"] = problem_files.get(
+                "unknown_filetype", set()
+            )
             problem_files["unknown_filetype"].add(filename)
-            print('Unknown filetype %s for %s' % (ext, filename))
+            print("Unknown filetype %s for %s" % (ext, filename))
         return [], 0
 
-def read_file_behrooz(filename, file_id, semantic, missing_tags=None, problem_files=None):
+
+def read_file_behrooz(
+    filename, file_id, semantic, missing_tags=None, problem_files=None
+):
     """
     Read file for parsing
 
@@ -118,14 +136,20 @@ def read_file_behrooz(filename, file_id, semantic, missing_tags=None, problem_fi
     :rtype: list(SymbolTree)
     :return list of Symbol trees found in the file
     """
-    #s = time.time()
-    (ext,content) = MathDocument.read_doc_file(filename)
-    t = MathExtractor.Behrooz_parse_from_xml(content, 1, window=3, operator=semantic, missing_tags=missing_tags,
-                                                problem_files=problem_files)
-        # #print("file %s took %s per expr"%(file_id,(time.time()-s)/len(t)))
-        # for item in t:
-        #     #slttuplesList = SymbolTree.get_pairs(item, window='all')
-        #     print(item)
+    # s = time.time()
+    (ext, content) = MathDocument.read_doc_file(filename)
+    t = MathExtractor.Behrooz_parse_from_xml(
+        content,
+        1,
+        window=3,
+        operator=semantic,
+        missing_tags=missing_tags,
+        problem_files=problem_files,
+    )
+    # #print("file %s took %s per expr"%(file_id,(time.time()-s)/len(t)))
+    # for item in t:
+    #     #slttuplesList = SymbolTree.get_pairs(item, window='all')
+    #     print(item)
     return t
 
 
@@ -175,43 +199,55 @@ def read_file_behrooz(filename, file_id, semantic, missing_tags=None, problem_fi
 #
 
 
-
-
-def ConvertWikipediaToSLTTuplesNewVersion(filePathForresults, filename, dirId, lst, missing_tags=None, problem_files=None):
+def ConvertWikipediaToSLTTuplesNewVersion(
+    filePathForresults, filename, dirId, lst, missing_tags=None, problem_files=None
+):
     try:
-        parts = filename.split('/')
-        file_name = os.path.splitext(parts[len(parts)-1])[0]
+        parts = filename.split("/")
+        file_name = os.path.splitext(parts[len(parts) - 1])[0]
         # parts = parts[len(parts)-1].split(".")
         # FileID = parts[0]
         # for i in range (1,len(parts)-1):
         #     FileID = FileID + "."+parts[i]
         (ext, content) = MathDocument.read_doc_file(filename)
-        formulas = MathExtractor.parse_from_xml(content, 1, operator=False, missing_tags=missing_tags,
-                                                problem_files=problem_files)
-
-
+        formulas = MathExtractor.parse_from_xml(
+            content,
+            1,
+            operator=False,
+            missing_tags=missing_tags,
+            problem_files=problem_files,
+        )
 
         # formulas = MathExtractor.parse_from_xml(content,1, operator=False, missing_tags=missing_tags,problem_files=problem_files)
 
-        #formulas = MathExtractor.behrooz_parse_from_xml(content=content, content_id=1, operator=True, missing_tags=missing_tags)
+        # formulas = MathExtractor.behrooz_parse_from_xml(content=content, content_id=1, operator=True, missing_tags=missing_tags)
         for key in formulas:
             tuples = formulas[key].get_pairs(window=1, eob=True)
             if not tuples:
                 return
-            f = open(filePathForresults+"/"+str(dirId)+"/"+file_name+":"+str(key)+".txt", "w+")
+            f = open(
+                filePathForresults
+                + "/"
+                + str(dirId)
+                + "/"
+                + file_name
+                + ":"
+                + str(key)
+                + ".txt",
+                "w+",
+            )
             for t in tuples:
                 f.write(t + "\n")
             f.close()
 
-            #fileP = filePathForresults + "/" + str(dirId) + "/" + FileID + ":" + str(key) + ".txt"
-            #f = open(fileP, "w+")
-            #for t in tuples:
-                #f.write(t+"\n")
-            #f.close()
+            # fileP = filePathForresults + "/" + str(dirId) + "/" + FileID + ":" + str(key) + ".txt"
+            # f = open(fileP, "w+")
+            # for t in tuples:
+            # f.write(t+"\n")
+            # f.close()
 
     except:
         print(filename)
-
 
     #
     # formulas = MathExtractor.Behrooz_parse_from_xml(content, 1, window=2, operator=None, missing_tags=missing_tags,
@@ -233,22 +269,19 @@ def ConvertWikipediaToSLTTuplesNewVersion(filePathForresults, filename, dirId, l
     # return formulas
 
 
-
-
-
 def behrooztest():
-    root = '/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/NTCIR12_MathIR_WikiCorpus_v2.1.0/MathTagArticles/wpmath00000'
-    filePathForresults = '/home/bm3302/FastText/SLTTuples_W1'
+    root = "/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/NTCIR12_MathIR_WikiCorpus_v2.1.0/MathTagArticles/wpmath00000"
+    filePathForresults = "/home/bm3302/FastText/SLTTuples_W1"
     lst = []
     for j in range(1, 17):
         tempAddress = root
         if j < 10:
-            tempAddress = tempAddress + '0' + str(j) + '/Articles'
+            tempAddress = tempAddress + "0" + str(j) + "/Articles"
         else:
-            tempAddress = tempAddress + str(j) + '/Articles'
+            tempAddress = tempAddress + str(j) + "/Articles"
         for filename in os.listdir(tempAddress):
-            filePath = tempAddress + '/' + filename
-            ConvertWikipediaToSLTTuplesNewVersion(filePathForresults, filePath, j,lst)
+            filePath = tempAddress + "/" + filename
+            ConvertWikipediaToSLTTuplesNewVersion(filePathForresults, filePath, j, lst)
             # return
             # except Exception as err:
             #     print('-------------------------------------------\n' + str(err))
@@ -256,36 +289,50 @@ def behrooztest():
         print(temp)
 
 
-def behrooz_queryPreparation(filename, resultFile, file_id, missing_tags=None, problem_files=None):
+def behrooz_queryPreparation(
+    filename, resultFile, file_id, missing_tags=None, problem_files=None
+):
     (ext, content) = MathDocument.read_doc_file(filename)
-    #formulas = MathExtractor.parse_from_xml(content,1, operator=False, missing_tags=missing_tags,problem_files=problem_files)
-    formulas = MathExtractor.parse_from_xml(content, 1, operator=False, missing_tags=missing_tags,
-                                            problem_files=problem_files)
+    # formulas = MathExtractor.parse_from_xml(content,1, operator=False, missing_tags=missing_tags,problem_files=problem_files)
+    formulas = MathExtractor.parse_from_xml(
+        content,
+        1,
+        operator=False,
+        missing_tags=missing_tags,
+        problem_files=problem_files,
+    )
     for key in formulas:
         tuples = formulas[key].get_pairs(window=1, eob=True)
         if not tuples:
             return
         f = open(resultFile, "w+")
         for t in tuples:
-            f.write(t+"\n")
+            f.write(t + "\n")
         f.close()
 
 
 def convertHTMLTOSLTprepareQueryForTest():
 
     for i in range(1, 21):
-            print(i)
-            behrooz_queryPreparation("/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/TestQueries/"+str(i)+".html",
-                                 "/home/bm3302/FastText/SLTTuples_W1/Queries/"+str(i)+".txt", 1)
-        # except:
-        #     print(i)
-   #          "/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/TestQueries/" + str(i) + ".html",
-   #          '/home/bm3302/FastText/OPTTuples_W1/Queries/' + str(i) + ".txt", i)
+        print(i)
+        behrooz_queryPreparation(
+            "/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/TestQueries/"
+            + str(i)
+            + ".html",
+            "/home/bm3302/FastText/SLTTuples_W1/Queries/" + str(i) + ".txt",
+            1,
+        )
+    # except:
+    #     print(i)
 
-    # doc_trees1 = read_file_behrooz('/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/NTCIR12_MathIR_WikiCorpus_v2.1.0/MathTagArticles/wpmath0000004/Articles/Cesàro_summation.html', 1, None)
-    # doc_trees = read_file_behrooz("/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/TestQueries/32.html", 1, None)
-    # doc_trees = read_file_behrooz("/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/TestQueries/33.html", 1, None)
-    # doc_trees = read_file_behrooz("/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/TestQueries/34.html", 1, None)
+
+#          "/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/TestQueries/" + str(i) + ".html",
+#          '/home/bm3302/FastText/OPTTuples_W1/Queries/' + str(i) + ".txt", i)
+
+# doc_trees1 = read_file_behrooz('/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/NTCIR12_MathIR_WikiCorpus_v2.1.0/MathTagArticles/wpmath0000004/Articles/Cesàro_summation.html', 1, None)
+# doc_trees = read_file_behrooz("/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/TestQueries/32.html", 1, None)
+# doc_trees = read_file_behrooz("/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/TestQueries/33.html", 1, None)
+# doc_trees = read_file_behrooz("/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/TestQueries/34.html", 1, None)
 
 # def behrooz_queryPreparation(filename, resultFile, file_id,window, missing_tags=None, problem_files=None):
 #     # s = time.time()
@@ -323,55 +370,57 @@ def convertHTMLTOSLTprepareQueryForTest():
 #         print('Unknown filetype %s for %s' % (ext, filename))
 #         return []
 
+
 def testFile():
-    root = '/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/NTCIR12_MathIR_WikiCorpus_v2.1.0/MathTagArticles/wpmath00000'
+    root = "/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/NTCIR12_MathIR_WikiCorpus_v2.1.0/MathTagArticles/wpmath00000"
     count = 0
     for j in range(1, 17):
         tempAddress = root
         if j < 10:
-            tempAddress = tempAddress + '0' + str(j) + '/Articles'
+            tempAddress = tempAddress + "0" + str(j) + "/Articles"
         else:
-            tempAddress = tempAddress + str(j) + '/Articles'
+            tempAddress = tempAddress + str(j) + "/Articles"
         for filename in os.listdir(tempAddress):
             try:
-                filePath = tempAddress + '/' + filename
-                f = open (filePath)
-                temp =""
+                filePath = tempAddress + "/" + filename
+                f = open(filePath)
+                temp = ""
                 for line in f.readlines():
-                    temp+= (line.strip())
+                    temp += line.strip()
                 f.close()
 
                 # if "<msup><mi>x</mi><mn>2</mn></msup>" in temp:
-                #if "<semantics><mrow><msub><mi>x</mi><mi>a</mi></msub></mrow>" in temp:
+                # if "<semantics><mrow><msub><mi>x</mi><mi>a</mi></msub></mrow>" in temp:
                 if "<semantics><mrow><mi>x</mi><mo>+</mo><mi>m</mi></mrow>" in temp:
                     print(filePath)
                 # (ext, content) = MathDocument.read_doc_file(filePath)
                 # # if "<mn>\n  " in content:
                 # if "x^2" in content:
                 #     print(filePath)
-                    # return
+                # return
             except:
-                print('-------------------------------------------' + filename)
+                print("-------------------------------------------" + filename)
 
 
 def check_value_exists():
-    root = '/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/NTCIR12_MathIR_WikiCorpus_v2.1.0/MathTagArticles/wpmath00000'
+    root = "/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/NTCIR12_MathIR_WikiCorpus_v2.1.0/MathTagArticles/wpmath00000"
     for j in range(1, 17):
         tempAddress = root
         if j < 10:
-            tempAddress = tempAddress + '0' + str(j) + '/Articles'
+            tempAddress = tempAddress + "0" + str(j) + "/Articles"
         else:
-            tempAddress = tempAddress + str(j) + '/Articles'
+            tempAddress = tempAddress + str(j) + "/Articles"
         for filename in os.listdir(tempAddress):
             try:
-                filePath = tempAddress + '/' + filename
+                filePath = tempAddress + "/" + filename
                 (ext, content) = MathDocument.read_doc_file(filePath)
                 # if "<mn>\n  " in content:
                 if "9.80665" in content:
                     print(filePath)
                     # return
             except:
-                print('-------------------------------------------' + filename)
+                print("-------------------------------------------" + filename)
+
 
 def main():
     # (ext, content) = MathDocument.read_doc_file("/home/bm3302/opt_test.html")
@@ -381,7 +430,7 @@ def main():
     #     tuples = formulas[key].get_pairs(window=2, eob=True)
     #     for t in tuples:
     #         print(t + "\n")
-        #f.close()
+    # f.close()
     # print(content)
     # formulas = MathExtractor.Behrooz_parse_from_xml(content, 1, window=2, operator=None)
     #
@@ -405,33 +454,21 @@ def main():
     # for key in formulas:
     #     tuples = formulas[key].get_pairs(window=2, eob=True)
     #     print(tuples)
-    #count = 0
+    # count = 0
     #'/home/bm3302/Downloads/NTCIR12_MathIR_WikiCorpus_v2.1.0/NTCIR12_MathIR_WikiCorpus_v2.1.0/MathTagArticles'
-    #check_value_exists()
+    # check_value_exists()
 
-
-
-
-# filePath = "E:/NTCIR-12_MathIR_Wikipedia_Corpus/wpmath0000002/Z-buffering.html"
-#         (ext, content) = MathDocument.read_doc_file(filePath)
-#         formulas = MathExtractor.parse_from_xml(content,1, operator=True, missing_tags=None,problem_files=None)
-#         for key in formulas:
-#             print("-------------------------------------------------------")
-#             tuples = formulas[key].get_pairs(window=1, eob=True)
-#             if not tuples:
-#                 return
-#         #f = open(resultFile, "w+")
-#             for t in tuples:
-#                 print(t+"\n")
-
-
-
-
-
-
-
-
-
+    # filePath = "E:/NTCIR-12_MathIR_Wikipedia_Corpus/wpmath0000002/Z-buffering.html"
+    #         (ext, content) = MathDocument.read_doc_file(filePath)
+    #         formulas = MathExtractor.parse_from_xml(content,1, operator=True, missing_tags=None,problem_files=None)
+    #         for key in formulas:
+    #             print("-------------------------------------------------------")
+    #             tuples = formulas[key].get_pairs(window=1, eob=True)
+    #             if not tuples:
+    #                 return
+    #         #f = open(resultFile, "w+")
+    #             for t in tuples:
+    #                 print(t+"\n")
 
     # temp = "E:/NTCIR-12_MathIR_Wikipedia_Corpus/wpmath0000002/"
     # for filePath in os.listdir("E:/NTCIR-12_MathIR_Wikipedia_Corpus/wpmath0000002"):
@@ -459,17 +496,8 @@ def main():
     #     for t in tuples:
     #         print(t)
 
-
-
-
-
-
     convertHTMLTOSLTprepareQueryForTest()
     behrooztest()
-
-
-
-
 
     #
     # if 1==1:
@@ -556,5 +584,6 @@ def main():
     #
     #     print("Elapsed time %s" % (elapsed))
 
-if __name__ == '__main__':
-   main()
+
+if __name__ == "__main__":
+    main()

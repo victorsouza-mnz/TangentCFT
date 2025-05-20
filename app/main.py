@@ -8,8 +8,17 @@ import torch
 from app.modules.search.use_cases.separate_text_and_formulas import (
     make_separate_text_and_formulas_use_case,
 )
-from app.modules.search.use_cases.get_formula_vector import (
-    make_get_formula_vector_use_case,
+
+from app.modules.embedding.use_cases.parse_formula_to_tuples import (
+    make_parse_formula_to_tuples_use_case,
+)
+
+from app.modules.embedding.use_cases.encode_formula_tuples import (
+    make_encode_formula_tuples_use_case,
+)
+
+from app.modules.search.use_cases.get_formula_vector_by_formula_encoded_tuples import (
+    make_get_formula_vector_by_formula_encoded_tuples_use_case,
 )
 from app.modules.search.use_cases.get_text_vector import make_get_text_vector_use_case
 
@@ -27,7 +36,6 @@ class SearchReqParams(BaseModel):
 
 @app.post("/search")
 async def search(params: SearchReqParams):
-    print(params.query)
 
     text, formulas, formula_positions = (
         make_separate_text_and_formulas_use_case().execute(params.query)
@@ -36,7 +44,15 @@ async def search(params: SearchReqParams):
     formula_vectors = []
 
     for formula in formulas:
-        vector = make_get_formula_vector_use_case().execute(formula)
+
+        formula_tuples = make_parse_formula_to_tuples_use_case().execute(formula)
+
+        encoded_tuples = make_encode_formula_tuples_use_case().execute(formula_tuples)
+
+        vector = make_get_formula_vector_by_formula_encoded_tuples_use_case().execute(
+            encoded_tuples
+        )
+
         formula_vectors.append(vector)
 
     text_vector = make_get_text_vector_use_case().execute(text)
