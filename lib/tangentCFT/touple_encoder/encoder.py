@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Literal
 
 
 class TupleTokenizationMode(Enum):
@@ -201,105 +202,183 @@ class EncoderManager:
         self,
         slt_encoder_map_path="lib/tangentCFT/touple_encoder/slt_encoder.tsv",
         opt_encoder_map_path="lib/tangentCFT/touple_encoder/opt_encoder.tsv",
+        slt_type_encoder_map_path="lib/tangentCFT/touple_encoder/slt_type_encoder.tsv",
     ):
         # Garantir que a inicialização ocorra apenas uma vez
         if self._initialized:
             return
 
-        self.slt_encoder_map_path = slt_encoder_map_path
-        self.slt_encoder_map_node = {}
-        self.slt_encoder_map_edge = {}
-        self.slt_next_node_id = 60000
-        self.slt_next_edge_id = 500
-        self.load_encoder_map()
+        # Mapeamento de encoders por tipo
+        self.encoders_data = {
+            "SLT": {
+                "path": slt_encoder_map_path,
+                "node_map": {},
+                "edge_map": {},
+                "next_node_id": 60000,
+                "next_edge_id": 500,
+            },
+            "OPT": {
+                "path": opt_encoder_map_path,
+                "node_map": {},
+                "edge_map": {},
+                "next_node_id": 60000,
+                "next_edge_id": 500,
+            },
+            "SLT_TYPE": {
+                "path": slt_type_encoder_map_path,
+                "node_map": {},
+                "edge_map": {},
+                "next_node_id": 60000,
+                "next_edge_id": 500,
+            },
+        }
+
+        self.load_encoder_maps()
         self._initialized = True
 
-    def load_encoder_map(self):
-        """Carrega os mapas do encoder do arquivo"""
-        file = open(self.slt_encoder_map_path)
-        line = file.readline().strip("\n")
-        while line:
-            parts = line.split("\t")
-            encoder_type = parts[0]
-            symbol = parts[1]
-            value = int(parts[2])
-            if encoder_type == "N":
-                self.slt_encoder_map_node[symbol] = value
-            else:
-                self.slt_encoder_map_edge[symbol] = value
-            line = file.readline().strip("\n")
-        "The id shows the id that should be assigned to the next character to be encoded (a character that is not seen)" "Therefore there is a plus one in the following lines"
-        self.slt_next_node_id = max(list(self.slt_encoder_map_node.values())) + 1
-        self.slt_next_edge_id = max(list(self.slt_encoder_map_edge.values())) + 1
-        file.close()
+    def load_encoder_maps(self):
+        """Carrega todos os mapas de encoder dos arquivos"""
+        for encoder_type in self.encoders_data:  # Iterar apenas sobre as chaves
+            try:
+                self.load_encoder_map(encoder_type)
+            except FileNotFoundError:
+                print(
+                    f"Arquivo do encoder {encoder_type} não encontrado. Criando novo encoder."
+                )
 
-    def save_encoder_map(self):
-        """Salva os mapas de encoder no arquivo"""
-        file = open(self.slt_encoder_map_path, "w")
-        for item in self.slt_encoder_map_node:
-            file.write(
-                "N"
-                + "\t"
-                + str(item)
-                + "\t"
-                + str(self.slt_encoder_map_node[item])
-                + "\n"
-            )
-        for item in self.slt_encoder_map_edge:
-            file.write(
-                "E"
-                + "\t"
-                + str(item)
-                + "\t"
-                + str(self.slt_encoder_map_edge[item])
-                + "\n"
-            )
-        file.close()
+    def load_encoder_map(self, encoder_type):
+        """
+        Carrega um mapa de encoder específico
+
+        Args:
+            encoder_type: Tipo de encoder (SLT, OPT, ou SLT_TYPE)
+        """
+        encoder_data = self.encoders_data[encoder_type]
+        path = encoder_data["path"]
+        node_map = encoder_data["node_map"]
+        edge_map = encoder_data["edge_map"]
+
+        # Limpar os mapas
+        node_map.clear()
+        edge_map.clear()
+
+        try:
+            with open(path) as file:
+                line = file.readline().strip("\n")
+                while line:
+                    parts = line.split("\t")
+                    map_type = parts[0]
+                    symbol = parts[1]
+                    value = int(parts[2])
+
+                    if map_type == "N":
+                        node_map[symbol] = value
+                    else:
+                        edge_map[symbol] = value
+
+                    line = file.readline().strip("\n")
+
+                # Atualizar os IDs para o próximo caractere a ser codificado
+                if node_map:
+                    encoder_data["next_node_id"] = max(node_map.values()) + 1
+                if edge_map:
+                    encoder_data["next_edge_id"] = max(edge_map.values()) + 1
+
+                # Atualizar referências de classe
+                self._update_class_references(encoder_type)
+        except FileNotFoundError:
+            # Se o arquivo não existir, mantém os valores padrão
+            pass
+
+    def save_encoder_map(self, encoder_type):
+        """
+        Salva um mapa de encoder específico
+
+        Args:
+            encoder_type: Tipo de encoder (SLT, OPT, ou SLT_TYPE)
+        """
+        encoder_data = self.encoders_data[encoder_type]
+        path = encoder_data["path"]
+        node_map = encoder_data["node_map"]
+        edge_map = encoder_data["edge_map"]
+
+        with open(path, "w") as file:
+            # Salvar nós
+            for item in node_map:
+                file.write(f"N\t{item}\t{node_map[item]}\n")
+
+            # Salvar arestas
+            for item in edge_map:
+                file.write(f"E\t{item}\t{edge_map[item]}\n")
+
+    def _update_class_references(self, encoder_type):
+        """Atualiza as referências de classe com base no dicionário de configuração"""
+        encoder_data = self.encoders_data[encoder_type]
+
+        if encoder_type == "SLT":  # Usar strings diretas
+            self.slt_next_node_id = encoder_data["next_node_id"]
+            self.slt_next_edge_id = encoder_data["next_edge_id"]
+        elif encoder_type == "OPT":  # Usar strings diretas
+            self.opt_next_node_id = encoder_data["next_node_id"]
+            self.opt_next_edge_id = encoder_data["next_edge_id"]
+        elif encoder_type == "SLT_TYPE":  # Usar strings diretas
+            self.slt_type_next_node_id = encoder_data["next_node_id"]
+            self.slt_type_next_edge_id = encoder_data["next_edge_id"]
 
     def encode_tuples(
         self,
         math_tuples,
+        encoder_type: Literal["SLT", "OPT", "SLT_TYPE"],
         embedding_type=TupleTokenizationMode.Both_Separated,
         ignore_full_relative_path=True,
         tokenize_all=False,
-        tokenize_number=True,
+        tokenize_numbers=True,
     ):
         """
         Encodifica as tuplas da fórmula e atualiza o encoder se necessário
 
         Args:
             math_tuples: Lista de tuplas extraídas de uma fórmula
+            encoder_type: Tipo de encoder (SLT, OPT, ou SLT_TYPE)
             embedding_type: Tipo de embeddings a serem usados
             ignore_full_relative_path: Determina se deve ignorar o caminho relativo completo
             tokenize_all: Determina se todos os elementos devem ser tokenizados
-            tokenize_number: Determina se os números devem ser tokenizados
+            tokenize_numbers: Determina se os números devem ser tokenizados
 
         Returns:
             Lista de tuplas encodificadas
         """
+        encoder_data = self.encoders_data[encoder_type]
+        node_map = encoder_data["node_map"]
+        edge_map = encoder_data["edge_map"]
+        next_node_id = encoder_data["next_node_id"]
+        next_edge_id = encoder_data["next_edge_id"]
+
         encoded_tuples, update_map_node, update_map_edge, new_node_id, new_edge_id = (
             TupleEncoder.encode_tuples(
-                self.slt_encoder_map_node,
-                self.slt_encoder_map_edge,
-                self.slt_next_node_id,
-                self.slt_next_edge_id,
+                node_map,
+                edge_map,
+                next_node_id,
+                next_edge_id,
                 math_tuples,
                 embedding_type,
                 ignore_full_relative_path,
                 tokenize_all,
-                tokenize_number,
+                tokenize_numbers,
             )
         )
 
-        # Atualizar os IDs e mapas
-        self.slt_next_node_id = new_node_id
-        self.slt_next_edge_id = new_edge_id
-        self.slt_encoder_map_node.update(update_map_node)
-        self.slt_encoder_map_edge.update(update_map_edge)
+        # Atualizar os IDs e mapas no dicionário de configuração
+        encoder_data["next_node_id"] = new_node_id
+        encoder_data["next_edge_id"] = new_edge_id
+        node_map.update(update_map_node)
+        edge_map.update(update_map_edge)
+
+        # Atualizar as referências de classe
+        self._update_class_references(encoder_type)
 
         # Se houve atualização, salvar o encoder
         if update_map_node or update_map_edge:
-            print("Adicionando novas tuplas ao encoder... =D ")
-            self.save_encoder_map()
+            self.save_encoder_map(encoder_type)
 
         return encoded_tuples

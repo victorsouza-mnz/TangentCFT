@@ -7,6 +7,7 @@ from torch.autograd import Variable
 import torch
 import torch.nn.functional as F
 from lib.tangentCFT.touple_encoder.encoder import EncoderManager
+from typing import Literal
 
 # Remover ou comentar esta linha
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -79,7 +80,13 @@ class TangentCFTService:
     def get_query_vector(self, lst_encoded_tuples):
         return self.__get_vector_representation(lst_encoded_tuples)
 
-    def encode_formula_tuples(self, formula_tuples):
+    def encode_formula_tuples(
+        self,
+        formula_tuples,
+        encoder_type: Literal["SLT", "OPT", "SLT_TYPE"],
+        embedding_type=None,
+        tokenize_numbers=None,
+    ):
         """
         Encodifica as tuplas da fórmula usando o EncoderManager
 
@@ -89,7 +96,14 @@ class TangentCFTService:
         Returns:
             Lista de tuplas encodificadas
         """
-        return self.encoder_manager.encode_tuples(formula_tuples)
+        # Apenas passa os parâmetros que não são None
+        kwargs = {}
+        if embedding_type is not None:
+            kwargs["embedding_type"] = embedding_type
+        if tokenize_numbers is not None:
+            kwargs["tokenize_numbers"] = tokenize_numbers
+        kwargs["encoder_type"] = encoder_type
+        return self.encoder_manager.encode_tuples(formula_tuples, **kwargs)
 
     @staticmethod
     def formula_retrieval(collection_tensor, formula_index, query_vector, top_k=10):

@@ -9,7 +9,9 @@ from bs4 import BeautifulSoup
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.modules.search.use_cases.get_text_vector import make_get_text_vector_use_case
+from app.modules.embedding.use_cases.get_text_vector import (
+    make_get_text_vector_use_case,
+)
 
 # Input XML file path
 POSTS_XML_PATH = "data/arqmath/Posts.V1.3.xml"

@@ -2,21 +2,23 @@ import os
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from tqdm import tqdm
 from services.elasticsearch_service import ElasticsearchService
-from app.modules.search.use_cases.get_text_vector import make_get_text_vector_use_case
+from app.modules.embedding.use_cases.get_text_vector import (
+    make_get_text_vector_use_case,
+)
 
 
 CHECKPOINT_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "update_text_vector_checkpoint.txt"
 )
 # Increased batch size for faster processing
-BATCH_SIZE = 500
+BATCH_SIZE = 1000
 # Increased number of workers
-MAX_WORKERS = 8
+MAX_WORKERS = 4
 
 lock = threading.Lock()
 
@@ -39,9 +41,22 @@ def save_checkpoint(last_post_id):
 
 def fetch_posts_from_elastic(last_post_id, size=BATCH_SIZE):
     """
-    Busca posts do Elasticsearch com post_id maior que o last_post_id.
+    Busca posts do Elasticsearch com post_id maior que o last_post_id
+    e que não possuem text_without_formula_vector populado.
     """
-    return elastic_service.search_posts_after_id(last_post_id, size)
+    body = {
+        "size": size,
+        "query": {
+            "bool": {
+                "must": [{"range": {"post_id": {"gt": last_post_id}}}],
+                "must_not": [{"exists": {"field": "text_without_formula_vector"}}],
+            }
+        },
+        "sort": [{"post_id": "asc"}],
+    }
+
+    res = elastic_service.es.search(index=elastic_service.index_name, body=body)
+    return [hit["_source"] for hit in res["hits"]["hits"]]
 
 
 def process_batch(posts):
@@ -95,8 +110,15 @@ def update_batch(elastic_service, batch):
 
 
 def count_total_posts():
-    """Get approximate total count for progress tracking"""
-    query = {"track_total_hits": True, "size": 0}
+    """Get approximate total count of posts without text vectors"""
+    query = {
+        "track_total_hits": True,
+        "size": 0,
+        "query": {
+            "bool": {"must_not": [{"exists": {"field": "text_without_formula_vector"}}]}
+        },
+    }
+
     try:
         result = elastic_service.es.search(index=elastic_service.index_name, body=query)
         return result["hits"]["total"]["value"]
@@ -107,6 +129,7 @@ def count_total_posts():
 
 def update_vectors():
     last_post_id = load_last_checkpoint()
+
     print(f"Último post processado: {last_post_id}")
 
     # Get approximate total for progress bar
@@ -120,11 +143,13 @@ def update_vectors():
         futures = []
 
         while True:
+            print(f"Fetching posts from {last_post_id} to {last_post_id + BATCH_SIZE}")
             posts = fetch_posts_from_elastic(last_post_id, BATCH_SIZE)
 
             if not posts:
                 break
 
+            print("processing batch ")
             # Process vectors in batches
             sub_batches = [posts[i : i + 100] for i in range(0, len(posts), 100)]
             batch_futures = [

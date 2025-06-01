@@ -34,6 +34,7 @@ CHECKPOINT_FILE = os.path.join(
 )
 BATCH_SIZE = 100
 MAX_WORKERS = 4
+MAX_POSTS = 15000  # Limit to first 30k posts
 
 lock = threading.Lock()
 
@@ -65,6 +66,12 @@ def process_post(elem):
 
     text_without_formula = soup.get_text(separator=" ", strip=True)
 
+    if len(text) == 0 or len(text_without_formula) == 0:
+        print("Erro texto vazio por algum motivo")
+        print("text:")
+        print(text)
+        print("text without formula:")
+        print(text_without_formula)
     if not (text or full_text_without_html):
         return None
 
@@ -106,6 +113,7 @@ def index_posts_from_xml(elastic_service):
     futures = []
     executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
     current_post = 0
+    processed_posts = 0
 
     for event, elem in context:
         if elem.tag == "row":
@@ -119,6 +127,7 @@ def index_posts_from_xml(elastic_service):
             doc = process_post(elem)
             if doc:
                 batch.append(doc)
+                processed_posts += 1
 
             if len(batch) >= BATCH_SIZE:
                 futures.append(
@@ -131,6 +140,11 @@ def index_posts_from_xml(elastic_service):
 
             elem.clear()
 
+            # Stop after processing MAX_POSTS
+            if processed_posts >= MAX_POSTS:
+                print(f"Reached limit of {MAX_POSTS} posts. Stopping.")
+                break
+
     if batch:
         futures.append(executor.submit(index_batch, elastic_service, batch.copy()))
         save_checkpoint(post_id)
@@ -139,7 +153,9 @@ def index_posts_from_xml(elastic_service):
     for f in futures:
         f.result()  # garante que todas as tarefas terminaram
 
-    print(f"Indexação finalizada: {current_post} / {total_posts} posts processados")
+    print(
+        f"Indexação finalizada: {processed_posts} posts processados de {current_post} analisados"
+    )
 
 
 def index_batch(elastic_service, batch):

@@ -41,19 +41,13 @@ class ElasticsearchService:
             print(f"Error getting last indexed post: {str(e)}")
             return None
 
-    def create_index_with_checkpoint(self):
-        """Create the index with the same mappings as create_index"""
-        self.create_index()
-
     def index_post(
         self,
         post_id,
         text,
         text_without_formula=None,
         text_without_formula_vector=None,
-        formulas_slt_vectors=None,
-        formulas_slt_type_vectors=None,
-        formulas_opt_vectors=None,
+        formula_vectors=None,
         formulas=None,
         formulas_ids=None,
         formulas_mathml=None,
@@ -67,9 +61,7 @@ class ElasticsearchService:
             text: The full post text
             text_without_formula: Text with formulas removed
             text_without_formula_vector: Vector of text without formulas
-            formulas_slt_vectors: List of SLT formula vectors
-            formulas_slt_type_vectors: List of SLT type formula vectors
-            formulas_opt_vectors: List of OPT formula vectors
+            formula_vectors: List of formula vectors
             formulas: List of formula strings
             formulas_ids: List of formula IDs
             formulas_mathml: List of MathML formula strings
@@ -87,23 +79,16 @@ class ElasticsearchService:
                 else text_without_formula_vector
             )
 
-        for field_name, field_value in [
-            ("formulas_slt_vectors", formulas_slt_vectors),
-            ("formulas_slt_type_vectors", formulas_slt_type_vectors),
-            ("formulas_opt_vectors", formulas_opt_vectors),
-        ]:
-            if field_value is not None:
-                processed_vectors = []
-                for vector in field_value:
-                    processed_vector = {
-                        "vector": (
-                            vector.tolist()
-                            if isinstance(vector, np.ndarray)
-                            else vector
-                        )
-                    }
-                    processed_vectors.append(processed_vector)
-                document[field_name] = processed_vectors
+        if formula_vectors is not None:
+            processed_vectors = []
+            for vector in formula_vectors:
+                processed_vector = {
+                    "vector": (
+                        vector.tolist() if isinstance(vector, np.ndarray) else vector
+                    )
+                }
+                processed_vectors.append(processed_vector)
+            document["formula_vectors"] = processed_vectors
 
         if formulas:
             document["formulas"] = formulas
@@ -148,27 +133,22 @@ class ElasticsearchService:
                 ].tolist()
 
             # Process formula vectors if present
-            for field_name in [
-                "formulas_slt_vectors",
-                "formulas_slt_type_vectors",
-                "formulas_opt_vectors",
-            ]:
-                if field_name in post:
-                    processed_vectors = []
-                    for vector in post[field_name]:
-                        if isinstance(vector, np.ndarray):
-                            processed_vector = {"vector": vector.tolist()}
-                        elif (
-                            isinstance(vector, dict)
-                            and "vector" in vector
-                            and isinstance(vector["vector"], np.ndarray)
-                        ):
-                            processed_vector = {"vector": vector["vector"].tolist()}
-                        else:
-                            # Assuming vector is already in the correct format or a raw list/vector
-                            processed_vector = {"vector": vector}
-                        processed_vectors.append(processed_vector)
-                    post[field_name] = processed_vectors
+            if "formula_vectors" in post:
+                processed_vectors = []
+                for vector in post["formula_vectors"]:
+                    if isinstance(vector, np.ndarray):
+                        processed_vector = {"vector": vector.tolist()}
+                    elif (
+                        isinstance(vector, dict)
+                        and "vector" in vector
+                        and isinstance(vector["vector"], np.ndarray)
+                    ):
+                        processed_vector = {"vector": vector["vector"].tolist()}
+                    else:
+                        # Assuming vector is already in the correct format or a raw list/vector
+                        processed_vector = {"vector": vector}
+                    processed_vectors.append(processed_vector)
+                post["formula_vectors"] = processed_vectors
 
             bulk_data.append(action)
             bulk_data.append(post)
@@ -198,27 +178,22 @@ class ElasticsearchService:
                 ].tolist()
 
             # Process formula vectors if present
-            for field_name in [
-                "formulas_slt_vectors",
-                "formulas_slt_type_vectors",
-                "formulas_opt_vectors",
-            ]:
-                if field_name in update:
-                    processed_vectors = []
-                    for vector in update[field_name]:
-                        if isinstance(vector, np.ndarray):
-                            processed_vector = {"vector": vector.tolist()}
-                        elif (
-                            isinstance(vector, dict)
-                            and "vector" in vector
-                            and isinstance(vector["vector"], np.ndarray)
-                        ):
-                            processed_vector = {"vector": vector["vector"].tolist()}
-                        else:
-                            # Assuming vector is already in the correct format or a raw list/vector
-                            processed_vector = {"vector": vector}
-                        processed_vectors.append(processed_vector)
-                    update_data[field_name] = processed_vectors
+            if "formula_vectors" in update_data:
+                processed_vectors = []
+                for vector in update_data["formula_vectors"]:
+                    if isinstance(vector, np.ndarray):
+                        processed_vector = {"vector": vector.tolist()}
+                    elif (
+                        isinstance(vector, dict)
+                        and "vector" in vector
+                        and isinstance(vector["vector"], np.ndarray)
+                    ):
+                        processed_vector = {"vector": vector["vector"].tolist()}
+                    else:
+                        # Assuming vector is already in the correct format or a raw list/vector
+                        processed_vector = {"vector": vector}
+                    processed_vectors.append(processed_vector)
+                update_data["formula_vectors"] = processed_vectors
 
             self.es.update(index=self.index_name, id=post_id, doc=update_data)
             return True
@@ -236,27 +211,24 @@ class ElasticsearchService:
         if not updates:
             return True
 
-        bulk_data = []
-        for update in updates:
-            post_id = update.pop("post_id")
+        try:
+            bulk_data = []
 
-            # Process text_without_formula_vector if present
-            if "text_without_formula_vector" in update and isinstance(
-                update["text_without_formula_vector"], np.ndarray
-            ):
-                update["text_without_formula_vector"] = update[
-                    "text_without_formula_vector"
-                ].tolist()
+            for update in updates:
+                post_id = update.pop("post_id")
 
-            # Process formula vectors if present
-            for field_name in [
-                "formulas_slt_vectors",
-                "formulas_slt_type_vectors",
-                "formulas_opt_vectors",
-            ]:
-                if field_name in update:
+                # Process text_without_formula_vector if present
+                if "text_without_formula_vector" in update and isinstance(
+                    update["text_without_formula_vector"], np.ndarray
+                ):
+                    update["text_without_formula_vector"] = update[
+                        "text_without_formula_vector"
+                    ].tolist()
+
+                # Process formula vectors if present
+                if "formula_vectors" in update:
                     processed_vectors = []
-                    for vector in update[field_name]:
+                    for vector in update["formula_vectors"]:
                         if isinstance(vector, np.ndarray):
                             processed_vector = {"vector": vector.tolist()}
                         elif (
@@ -266,54 +238,27 @@ class ElasticsearchService:
                         ):
                             processed_vector = {"vector": vector["vector"].tolist()}
                         else:
-                            # Assuming vector is already in the correct format or a raw list/vector
+                            # Assuming vector is already in the correct format (list)
                             processed_vector = {"vector": vector}
                         processed_vectors.append(processed_vector)
-                    update[field_name] = processed_vectors
+                    update["formula_vectors"] = processed_vectors
 
-            action = {"update": {"_index": self.index_name, "_id": post_id}}
-            doc = {"doc": update}
+                # Build bulk actions
+                action = {"update": {"_index": self.index_name, "_id": post_id}}
+                doc = {"doc": update}
 
-            bulk_data.append(action)
-            bulk_data.append(doc)
+                bulk_data.append(action)
+                bulk_data.append(doc)
 
-        try:
+            # 🔥 Execute bulk OUTSIDE the loop
             response = self.es.bulk(operations=bulk_data, refresh=True)
+            print("Response of update", response)
+
             return not response.get("errors", False)
+
         except Exception as e:
             print(f"Error bulk updating posts: {str(e)}")
             return False
-
-    def search_posts(self, query_vector, field="text_without_formula_vector", size=10):
-        """
-        Search for similar posts using vector similarity.
-
-        Args:
-            query_vector: Vector for similarity search
-            field: Vector field to search on
-            size: Number of results to return
-
-        Returns:
-            List of posts sorted by similarity
-        """
-        if isinstance(query_vector, np.ndarray):
-            query_vector = query_vector.tolist()
-
-        query = {
-            "knn": {
-                "field": field,
-                "query_vector": query_vector,
-                "k": size,
-                "num_candidates": size * 2,
-            }
-        }
-
-        try:
-            response = self.es.search(index=self.index_name, knn=query)
-            return response["hits"]["hits"]
-        except Exception as e:
-            print(f"Error searching posts: {str(e)}")
-            return []
 
     def delete_index(self):
         """Delete the Elasticsearch index."""
@@ -339,7 +284,7 @@ class ElasticsearchService:
                         },
                     },
                     "analyzer": {
-                        "exercise_analyser": {
+                        "post_with_formula_analyser": {
                             "type": "custom",
                             "tokenizer": "standard",
                             "filter": [
@@ -350,7 +295,18 @@ class ElasticsearchService:
                                 "english_stemmer",
                                 "keep_latex",
                             ],
-                        }
+                        },
+                        "post_without_formula_analyser": {
+                            "type": "custom",
+                            "tokenizer": "standard",
+                            "filter": [
+                                "lowercase",
+                                "asciifolding",
+                                "trim",
+                                "english_stop",
+                                "english_stemmer",
+                            ],
+                        },
                     },
                 }
             },
@@ -360,16 +316,19 @@ class ElasticsearchService:
                     "text": {"type": "text"},
                     "text_latex_search": {
                         "type": "text",
-                        "analyzer": "exercise_analyser",
+                        "analyzer": "post_with_formula_analyser",
                     },
-                    "text_without_formula": {"type": "text"},
+                    "text_without_formula": {
+                        "type": "text",
+                        "analyzer": "post_without_formula_analyser",
+                    },
                     "text_without_formula_vector": {
                         "type": "dense_vector",
                         "dims": 384,
                         "index": True,
                         "similarity": "cosine",
                     },
-                    "formulas_slt_vectors": {
+                    "formula_vectors": {
                         "type": "nested",
                         "properties": {
                             "vector": {
@@ -377,29 +336,9 @@ class ElasticsearchService:
                                 "dims": 300,
                                 "index": True,
                                 "similarity": "cosine",
-                            }
-                        },
-                    },
-                    "formulas_slt_type_vectors": {
-                        "type": "nested",
-                        "properties": {
-                            "vector": {
-                                "type": "dense_vector",
-                                "dims": 300,
-                                "index": True,
-                                "similarity": "cosine",
-                            }
-                        },
-                    },
-                    "formulas_opt_vectors": {
-                        "type": "nested",
-                        "properties": {
-                            "vector": {
-                                "type": "dense_vector",
-                                "dims": 300,
-                                "index": True,
-                                "similarity": "cosine",
-                            }
+                            },
+                            "formula_index": {"type": "integer"},
+                            "formula_text": {"type": "text", "index": True},
                         },
                     },
                     "formulas": {"type": "text", "index": True},
@@ -411,8 +350,13 @@ class ElasticsearchService:
         }
 
         try:
+            # Se o índice já existir, precisamos excluí-lo primeiro
+            if self.index_exists():
+                self.es.indices.delete(index=self.index_name)
+                print(f"Deleted existing index {self.index_name}")
+
             self.es.indices.create(index=self.index_name, body=mapping)
-            print(f"Created index {self.index_name}")
+            print(f"Created index {self.index_name} with new mapping")
         except Exception as e:
             print(f"Error creating index: {str(e)}")
 

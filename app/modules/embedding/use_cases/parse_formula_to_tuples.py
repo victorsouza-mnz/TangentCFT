@@ -4,35 +4,48 @@ from lib.tangentS.math_tan.math_extractor import MathExtractor
 
 
 class ParseFormulaToTuplesUseCase:
-    def execute(self, formula: str) -> List[str]:
+    def execute(self, formula: str, operator: bool = False) -> List[str]:
         """
-        Converte uma fórmula MathML em uma lista de tuplas SLT
+        Converte uma fórmula MathML em uma lista de tuplas SLT ou OPT dependendo do valor de operator
 
         Args:
             formula: String contendo a fórmula em formato MathML
 
         Returns:
-            Lista de tuplas SLT
+            Lista de tuplas SLT ou OPT
         """
         try:
             # Converter MathML para Symbol Layout Tree
-            symbol_trees = MathExtractor.parse_from_xml(
+            # Even when send only one formula, the result is a dictionary of SymbolTrees
+            if operator == True:
+                print("converting formula", formula, "to OPT")
+            trees = MathExtractor.parse_from_xml(
                 formula,
                 content_id=1,  # ID temporário
-                operator=False,  # Usar SLT (Symbol Layout Tree)
+                operator=operator,  # Usar SLT (Symbol Layout Tree)
                 missing_tags=None,
                 problem_files=None,
             )
 
-            # Gerar tuplas a partir da SLT
-            # Para cada árvore extraída, gera pares de tuplas
-            for _, tree in symbol_trees.items():
+            if operator == True:
+                print("trees:", trees)
 
-                tuples = tree.get_pairs(window=2, eob=True)
+            for key in trees:
+                tuples = trees[key].get_pairs(window=2, eob=True)
+                """
+                Because we're only sending one formula we can return the first tuple
+                (slt_trees should have only one item any way)
+                """
+                return tuples
 
-            return tuples
+            # Se não houver formulas
+            return []
         except Exception as e:
+            import traceback
+
             print(f"Erro ao converter fórmula para tuplas: {str(e)}")
+            print("Stacktrace:")
+            print(traceback.format_exc())
             return []
 
 

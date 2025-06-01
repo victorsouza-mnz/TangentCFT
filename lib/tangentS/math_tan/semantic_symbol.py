@@ -692,6 +692,7 @@ class SemanticSymbol(MathSymbol):
                 # Unknown type ...
                 retval = SemanticSymbol("-!" + content, parent=parent)
 
+            print("retval", retval)
             if retval is None:
                 # file_out = open("missing_csymbol.txt", "a")
                 # file_out.write(content + "," + cd + "\n")
@@ -701,6 +702,7 @@ class SemanticSymbol(MathSymbol):
                 raise UnknownTagException("csymbol:" + content)
 
         if retval is None:
+            print("Out Error parsing formula to OPT tuples: Unknown tag:", elem.tag)
             raise UnknownTagException(elem.tag)
 
         if "id" in elem.attrib:
