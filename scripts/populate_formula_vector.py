@@ -6,6 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import csv
 import glob
+import numpy as np
 from services.elasticsearch_service import ElasticsearchService
 from enum import Enum
 from app.modules.embedding.use_cases.encode_formula_tuples import (
@@ -18,6 +19,18 @@ from lib.tangentCFT.touple_encoder.encoder import TupleTokenizationMode
 from app.modules.embedding.use_cases.get_formula_vector_by_formula_encoded_tuples import (
     make_get_formula_vector_by_formula_encoded_tuples_use_case,
 )
+
+from typing import Dict, List, TypedDict
+
+
+class Formula(TypedDict):
+    formula: str
+    id: str
+
+
+class PostFormulas(TypedDict):
+    formulas: List[Formula]
+
 
 # Batch sizes
 SEARCH_BATCH_SIZE = 1000
@@ -61,15 +74,15 @@ def process_formulas(file_path, elastic_service, graph_type: str):
             processed = 0
             hits = 0
 
-            # formula_map =  {post_id: {formulas: [formula]}}
-            formula_map = {}
+            formula_map: Dict[str, PostFormulas] = {}
             for row in formulas:
                 if row.get("post_id"):
                     post_id = row["post_id"]
                     if post_id not in formula_map:
-
                         formula_map[post_id] = {"formulas": []}
-                    formula_map[post_id]["formulas"].append(row["formula"])
+                    formula_map[post_id]["formulas"].append(
+                        {"formula": row["formula"], "id": row["id"]}
+                    )
 
             # Collect all found post_ids for later bulk update
             all_found_post_ids = set()
@@ -129,7 +142,7 @@ def process_formulas(file_path, elastic_service, graph_type: str):
                 for i in range(0, len(all_found_post_ids), UPDATE_BATCH_SIZE):
                     batch_ids = all_found_post_ids[i : i + UPDATE_BATCH_SIZE]
                     # Create a subset of the formula map for this batch
-                    batch_formula_data = {
+                    batch_formula_data: Dict[str, PostFormulas] = {
                         post_id: formula_map[str(post_id)]
                         for post_id in batch_ids
                         if str(post_id) in formula_map
@@ -154,15 +167,16 @@ def process_formulas(file_path, elastic_service, graph_type: str):
 
 
 def update_formula_vectors_in_posts(
-    post_ids, formulas_data, elastic_service, graph_type: str
+    post_ids, formulas_data: Dict[str, PostFormulas], elastic_service, graph_type: str
 ):
     """
-    Bulk update posts with all formula vector types (SLT, SLT_TYPE, OPT).
+    Bulk update posts with formula vector types (SLT, SLT_TYPE, OPT).
 
     Args:
         post_ids: List of post IDs to update
         formulas_data: Dictionary mapping post_id to formula information
         elastic_service: Elasticsearch service instance
+        graph_type: The type of graph to process (SLT, SLT_TYPE, OPT)
     """
     print("Updating formula vectors in posts")
 
@@ -193,17 +207,17 @@ def update_formula_vectors_in_posts(
                 # 1. Converter para tuplas
                 if graph_type == "SLT" or graph_type == "SLT_TYPE":
                     formula_tuples = parse_formula_to_tuples_use_case.execute(
-                        formula, operator=False
+                        formula["formula"], operator=False
                     )
 
                 elif graph_type == "OPT":
                     formula_tuples = parse_formula_to_tuples_use_case.execute(
-                        formula, operator=True
+                        formula["formula"], operator=True
                     )
 
                 if not formula_tuples:
                     print(
-                        f"No tuples generated for formula in post {post_id}, with graph type {graph_type}, formula: {formula}, formula_tuples: {formula_tuples}, skipping..."
+                        f"No tuples generated for formula {formula['id']}, with graph type {graph_type}, skipping..."
                     )
                     continue
 
@@ -229,7 +243,14 @@ def update_formula_vectors_in_posts(
                     formula_encoded_tuples
                 )
 
-                formula_vectors.append(formula_vector)
+                # Store vector and formula ID together in a dictionary
+                formula_vectors.append(
+                    {
+                        "vector": formula_vector,
+                        "id": formula["id"],
+                        "text": formula["formula"],
+                    }
+                )
 
             except Exception as e:
                 print(f"Error processing formula for post {post_id}: {str(e)}")
@@ -239,39 +260,39 @@ def update_formula_vectors_in_posts(
         update_doc = {}
         if graph_type == "SLT":
             processed_vectors = []
-            for i, vector in enumerate(formula_vectors):
+            for vector_data in formula_vectors:
                 processed_vector = {
-                    "vector": vector,
-                    "formula_index": i,
-                    "formula_text": post_formulas[i] if i < len(post_formulas) else "",
+                    "vector": vector_data["vector"],
+                    "formula_index": vector_data["id"],
+                    "formula_text": vector_data["text"],
                 }
                 processed_vectors.append(processed_vector)
             update_doc = {
-                "formulas_slt_vectors": processed_vectors,
+                "slt_vectors": processed_vectors,
             }
         elif graph_type == "OPT":
             processed_vectors = []
-            for i, vector in enumerate(formula_vectors):
+            for vector_data in formula_vectors:
                 processed_vector = {
-                    "vector": vector,
-                    "formula_index": i,
-                    "formula_text": post_formulas[i] if i < len(post_formulas) else "",
+                    "vector": vector_data["vector"],
+                    "formula_index": vector_data["id"],
+                    "formula_text": vector_data["text"],
                 }
                 processed_vectors.append(processed_vector)
             update_doc = {
-                "formulas_opt_vectors": processed_vectors,
+                "opt_vectors": processed_vectors,
             }
         elif graph_type == "SLT_TYPE":
             processed_vectors = []
-            for i, vector in enumerate(formula_vectors):
+            for vector_data in formula_vectors:
                 processed_vector = {
-                    "vector": vector,
-                    "formula_index": i,
-                    "formula_text": post_formulas[i] if i < len(post_formulas) else "",
+                    "vector": vector_data["vector"],
+                    "formula_index": vector_data["id"],
+                    "formula_text": vector_data["text"],
                 }
                 processed_vectors.append(processed_vector)
             update_doc = {
-                "formulas_slt_type_vectors": processed_vectors,
+                "slt_type_vectors": processed_vectors,
             }
 
         # Adicionar à lista para o método bulk_update_posts
@@ -282,16 +303,171 @@ def update_formula_vectors_in_posts(
     if bulk_updates:
         try:
             print(f"Updating bulk of {len(bulk_updates)} posts in database...")
-            print(f"example of bulk_updates: {bulk_updates[0]}")
 
             success = elastic_service.bulk_update_posts(bulk_updates)
-            print(f"Update completed: {success}")
+            print(f"Update completed, success: {success}")
         except Exception as e:
             print(f"Error updating posts: {e}")
     else:
         print("No update operations to execute")
 
     return successful_updates
+
+
+def combine_all_vectors(elastic_service, batch_size=100):
+    """
+    Process all documents in the index and combine their formula vectors.
+
+    Args:
+        elastic_service: Elasticsearch service instance
+        batch_size: Number of documents to process in each batch
+    """
+    print("Starting to combine all formula vectors...")
+
+    # Get total count of documents
+    count_query = {"query": {"match_all": {}}}
+    count_result = elastic_service.es.count(
+        index=elastic_service.index_name, body=count_query
+    )
+    total_docs = count_result["count"]
+
+    print(f"Total documents to process: {total_docs}")
+
+    # Process documents in batches
+    processed = 0
+    scroll_time = "5m"  # Keep the search context alive for 5 minutes
+
+    # Initialize the scroll
+    search_query = {
+        "query": {
+            "bool": {
+                "should": [
+                    {"exists": {"field": "slt_vectors"}},
+                    {"exists": {"field": "slt_type_vectors"}},
+                    {"exists": {"field": "opt_vectors"}},
+                ],
+                "minimum_should_match": 1,
+            }
+        },
+        "size": batch_size,
+    }
+
+    # Start the initial scroll
+    result = elastic_service.es.search(
+        index=elastic_service.index_name, body=search_query, scroll=scroll_time
+    )
+
+    print(f"Initial scroll result: {result['hits']}")
+
+    # Get the scroll_id
+    scroll_id = result["_scroll_id"]
+    hits = result["hits"]["hits"]
+
+    bulk_updates = []
+
+    while len(hits) > 0:
+        for hit in hits:
+            post_id = hit["_id"]
+            source = hit["_source"]
+
+            try:
+                # Get all vector types
+                slt_vectors = source.get("slt_vectors", [])
+                slt_type_vectors = source.get("slt_type_vectors", [])
+                opt_vectors = source.get("opt_vectors", [])
+
+                # Create a dictionary to hold combined vectors by formula_index
+                combined_vectors = {}
+
+                # Process SLT vectors
+                for vec in slt_vectors:
+                    idx = vec.get("formula_index")
+                    if idx is not None:
+                        if idx not in combined_vectors:
+                            combined_vectors[idx] = {
+                                "vector": np.array(vec.get("vector", [])),
+                                "formula_text": vec.get("formula_text", ""),
+                                "formula_index": idx,
+                            }
+                        else:
+                            combined_vectors[idx]["vector"] = np.array(
+                                vec.get("vector", [])
+                            )
+
+                # Process SLT_TYPE vectors and add to existing
+                for vec in slt_type_vectors:
+                    idx = vec.get("formula_index")
+                    if idx is not None:
+                        if idx not in combined_vectors:
+                            combined_vectors[idx] = {
+                                "vector": np.array(vec.get("vector", [])),
+                                "formula_text": vec.get("formula_text", ""),
+                                "formula_index": idx,
+                            }
+                        else:
+                            combined_vectors[idx]["vector"] += np.array(
+                                vec.get("vector", [])
+                            )
+
+                # Process OPT vectors and add to existing
+                for vec in opt_vectors:
+                    idx = vec.get("formula_index")
+                    if idx is not None:
+                        if idx not in combined_vectors:
+                            combined_vectors[idx] = {
+                                "vector": np.array(vec.get("vector", [])),
+                                "formula_text": vec.get("formula_text", ""),
+                                "formula_index": idx,
+                            }
+                        else:
+                            combined_vectors[idx]["vector"] += np.array(
+                                vec.get("vector", [])
+                            )
+
+                # Convert back to list format
+                result_vectors = []
+                for idx, data in combined_vectors.items():
+                    result_vectors.append(
+                        {
+                            "vector": data["vector"].tolist(),
+                            "formula_index": idx,
+                            "formula_text": data["formula_text"],
+                        }
+                    )
+
+                if result_vectors:
+                    bulk_updates.append(
+                        {"post_id": post_id, "formula_vectors": result_vectors}
+                    )
+
+            except Exception as e:
+                print(f"Error processing document {post_id}: {str(e)}")
+
+            processed += 1
+            if processed % 100 == 0:
+                print(f"Processed {processed} documents")
+
+        # Perform bulk update for this batch
+        if bulk_updates:
+            try:
+                print(
+                    f"Updating {len(bulk_updates)} documents with combined vectors..."
+                )
+                success = elastic_service.bulk_update_posts(bulk_updates)
+                print(f"Combined vectors update completed: {success}")
+                bulk_updates = []  # Reset for next batch
+            except Exception as e:
+                print(f"Error updating documents with combined vectors: {e}")
+
+        # Get the next batch
+        result = elastic_service.es.scroll(scroll_id=scroll_id, scroll=scroll_time)
+        scroll_id = result["_scroll_id"]
+        hits = result["hits"]["hits"]
+
+    # Clear the scroll context
+    elastic_service.es.clear_scroll(scroll_id=scroll_id)
+
+    print(f"Completed processing {processed} documents with combined vectors")
 
 
 def main():
@@ -310,6 +486,7 @@ def main():
     print(f"Getting OPT formula files from {opt_dir}...")
     opt_files = get_formula_files(opt_dir)
 
+    # Step 1: Process all vector types separately
     file_counter = 0
     print("Processing SLT_TYPE formulas...")
     file_counter = 0
@@ -319,6 +496,7 @@ def main():
         print(f"Processed SLT_TYPE: {file_counter} of {len(slt_files)} files")
 
     print("Processing SLT formulas...")
+    file_counter = 0
     for file_path in slt_files:
         process_formulas(file_path, elastic_service, graph_type="SLT")
         file_counter += 1
@@ -331,6 +509,13 @@ def main():
         file_counter += 1
         print(f"Processed OPT: {file_counter} of {len(opt_files)} files")
 
+    # Step 2: After all vector types are processed, combine them
+    print("\nAll vector types processed. Now combining vectors...")
+    combine_all_vectors(elastic_service)
+
 
 if __name__ == "__main__":
     main()
+
+
+# TODO INVESTIGAR PQ ESSE NAO TA CRIANDO O COMBINED VECTOR

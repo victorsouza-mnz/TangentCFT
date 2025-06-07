@@ -29,18 +29,6 @@ class ElasticsearchService:
         """Check if the index exists"""
         return self.es.indices.exists(index=self.index_name)
 
-    def get_last_indexed_post(self):
-        """Get the last indexed post to resume indexing"""
-        try:
-            query = {"sort": [{"post_id": {"order": "desc"}}], "size": 1}
-            result = self.es.search(index=self.index_name, body=query)
-            if result["hits"]["total"]["value"] > 0:
-                return result["hits"]["hits"][0]["_source"]
-            return None
-        except Exception as e:
-            print(f"Error getting last indexed post: {str(e)}")
-            return None
-
     def index_post(
         self,
         post_id,
@@ -48,6 +36,9 @@ class ElasticsearchService:
         text_without_formula=None,
         text_without_formula_vector=None,
         formula_vectors=None,
+        slt_vectors=None,
+        slt_type_vectors=None,
+        opt_vectors=None,
         formulas=None,
         formulas_ids=None,
         formulas_mathml=None,
@@ -62,6 +53,9 @@ class ElasticsearchService:
             text_without_formula: Text with formulas removed
             text_without_formula_vector: Vector of text without formulas
             formula_vectors: List of formula vectors
+            slt_vectors: List of SLT vectors
+            slt_type_vectors: List of SLT type vectors
+            opt_vectors: List of OPT vectors
             formulas: List of formula strings
             formulas_ids: List of formula IDs
             formulas_mathml: List of MathML formula strings
@@ -79,6 +73,7 @@ class ElasticsearchService:
                 else text_without_formula_vector
             )
 
+        # Process formula vectors
         if formula_vectors is not None:
             processed_vectors = []
             for vector in formula_vectors:
@@ -89,6 +84,42 @@ class ElasticsearchService:
                 }
                 processed_vectors.append(processed_vector)
             document["formula_vectors"] = processed_vectors
+
+        # Process SLT vectors
+        if slt_vectors is not None:
+            processed_vectors = []
+            for vector in slt_vectors:
+                processed_vector = {
+                    "vector": (
+                        vector.tolist() if isinstance(vector, np.ndarray) else vector
+                    )
+                }
+                processed_vectors.append(processed_vector)
+            document["slt_vectors"] = processed_vectors
+
+        # Process SLT type vectors
+        if slt_type_vectors is not None:
+            processed_vectors = []
+            for vector in slt_type_vectors:
+                processed_vector = {
+                    "vector": (
+                        vector.tolist() if isinstance(vector, np.ndarray) else vector
+                    )
+                }
+                processed_vectors.append(processed_vector)
+            document["slt_type_vectors"] = processed_vectors
+
+        # Process OPT vectors
+        if opt_vectors is not None:
+            processed_vectors = []
+            for vector in opt_vectors:
+                processed_vector = {
+                    "vector": (
+                        vector.tolist() if isinstance(vector, np.ndarray) else vector
+                    )
+                }
+                processed_vectors.append(processed_vector)
+            document["opt_vectors"] = processed_vectors
 
         if formulas:
             document["formulas"] = formulas
@@ -150,6 +181,60 @@ class ElasticsearchService:
                     processed_vectors.append(processed_vector)
                 post["formula_vectors"] = processed_vectors
 
+            # Process SLT vectors if present
+            if "slt_vectors" in post:
+                processed_vectors = []
+                for vector in post["slt_vectors"]:
+                    if isinstance(vector, np.ndarray):
+                        processed_vector = {"vector": vector.tolist()}
+                    elif (
+                        isinstance(vector, dict)
+                        and "vector" in vector
+                        and isinstance(vector["vector"], np.ndarray)
+                    ):
+                        processed_vector = {"vector": vector["vector"].tolist()}
+                    else:
+                        # Assuming vector is already in the correct format or a raw list/vector
+                        processed_vector = {"vector": vector}
+                    processed_vectors.append(processed_vector)
+                post["slt_vectors"] = processed_vectors
+
+            # Process SLT type vectors if present
+            if "slt_type_vectors" in post:
+                processed_vectors = []
+                for vector in post["slt_type_vectors"]:
+                    if isinstance(vector, np.ndarray):
+                        processed_vector = {"vector": vector.tolist()}
+                    elif (
+                        isinstance(vector, dict)
+                        and "vector" in vector
+                        and isinstance(vector["vector"], np.ndarray)
+                    ):
+                        processed_vector = {"vector": vector["vector"].tolist()}
+                    else:
+                        # Assuming vector is already in the correct format or a raw list/vector
+                        processed_vector = {"vector": vector}
+                    processed_vectors.append(processed_vector)
+                post["slt_type_vectors"] = processed_vectors
+
+            # Process OPT vectors if present
+            if "opt_vectors" in post:
+                processed_vectors = []
+                for vector in post["opt_vectors"]:
+                    if isinstance(vector, np.ndarray):
+                        processed_vector = {"vector": vector.tolist()}
+                    elif (
+                        isinstance(vector, dict)
+                        and "vector" in vector
+                        and isinstance(vector["vector"], np.ndarray)
+                    ):
+                        processed_vector = {"vector": vector["vector"].tolist()}
+                    else:
+                        # Assuming vector is already in the correct format or a raw list/vector
+                        processed_vector = {"vector": vector}
+                    processed_vectors.append(processed_vector)
+                post["opt_vectors"] = processed_vectors
+
             bulk_data.append(action)
             bulk_data.append(post)
 
@@ -195,6 +280,60 @@ class ElasticsearchService:
                     processed_vectors.append(processed_vector)
                 update_data["formula_vectors"] = processed_vectors
 
+            # Process SLT vectors if present
+            if "slt_vectors" in update_data:
+                processed_vectors = []
+                for vector in update_data["slt_vectors"]:
+                    if isinstance(vector, np.ndarray):
+                        processed_vector = {"vector": vector.tolist()}
+                    elif (
+                        isinstance(vector, dict)
+                        and "vector" in vector
+                        and isinstance(vector["vector"], np.ndarray)
+                    ):
+                        processed_vector = {"vector": vector["vector"].tolist()}
+                    else:
+                        # Assuming vector is already in the correct format or a raw list/vector
+                        processed_vector = {"vector": vector}
+                    processed_vectors.append(processed_vector)
+                update_data["slt_vectors"] = processed_vectors
+
+            # Process SLT type vectors if present
+            if "slt_type_vectors" in update_data:
+                processed_vectors = []
+                for vector in update_data["slt_type_vectors"]:
+                    if isinstance(vector, np.ndarray):
+                        processed_vector = {"vector": vector.tolist()}
+                    elif (
+                        isinstance(vector, dict)
+                        and "vector" in vector
+                        and isinstance(vector["vector"], np.ndarray)
+                    ):
+                        processed_vector = {"vector": vector["vector"].tolist()}
+                    else:
+                        # Assuming vector is already in the correct format or a raw list/vector
+                        processed_vector = {"vector": vector}
+                    processed_vectors.append(processed_vector)
+                update_data["slt_type_vectors"] = processed_vectors
+
+            # Process OPT vectors if present
+            if "opt_vectors" in update_data:
+                processed_vectors = []
+                for vector in update_data["opt_vectors"]:
+                    if isinstance(vector, np.ndarray):
+                        processed_vector = {"vector": vector.tolist()}
+                    elif (
+                        isinstance(vector, dict)
+                        and "vector" in vector
+                        and isinstance(vector["vector"], np.ndarray)
+                    ):
+                        processed_vector = {"vector": vector["vector"].tolist()}
+                    else:
+                        # Assuming vector is already in the correct format or a raw list/vector
+                        processed_vector = {"vector": vector}
+                    processed_vectors.append(processed_vector)
+                update_data["opt_vectors"] = processed_vectors
+
             self.es.update(index=self.index_name, id=post_id, doc=update_data)
             return True
         except Exception as e:
@@ -231,17 +370,111 @@ class ElasticsearchService:
                     for vector in update["formula_vectors"]:
                         if isinstance(vector, np.ndarray):
                             processed_vector = {"vector": vector.tolist()}
-                        elif (
-                            isinstance(vector, dict)
-                            and "vector" in vector
-                            and isinstance(vector["vector"], np.ndarray)
-                        ):
-                            processed_vector = {"vector": vector["vector"].tolist()}
+                        elif isinstance(vector, dict):
+                            processed_vector = {}
+                            if "vector" in vector:
+                                processed_vector["vector"] = (
+                                    vector["vector"].tolist()
+                                    if isinstance(vector["vector"], np.ndarray)
+                                    else vector["vector"]
+                                )
+                            if "formula_index" in vector:
+                                processed_vector["formula_index"] = vector[
+                                    "formula_index"
+                                ]
+                            if "formula_text" in vector:
+                                processed_vector["formula_text"] = vector[
+                                    "formula_text"
+                                ]
                         else:
                             # Assuming vector is already in the correct format (list)
                             processed_vector = {"vector": vector}
                         processed_vectors.append(processed_vector)
                     update["formula_vectors"] = processed_vectors
+
+                # Process SLT vectors if present
+                if "slt_vectors" in update:
+                    processed_vectors = []
+                    for vector in update["slt_vectors"]:
+                        if isinstance(vector, np.ndarray):
+                            processed_vector = {"vector": vector.tolist()}
+                        elif isinstance(vector, dict):
+                            processed_vector = {}
+                            if "vector" in vector:
+                                processed_vector["vector"] = (
+                                    vector["vector"].tolist()
+                                    if isinstance(vector["vector"], np.ndarray)
+                                    else vector["vector"]
+                                )
+                            if "formula_index" in vector:
+                                processed_vector["formula_index"] = vector[
+                                    "formula_index"
+                                ]
+                            if "formula_text" in vector:
+                                processed_vector["formula_text"] = vector[
+                                    "formula_text"
+                                ]
+                        else:
+                            # Assuming vector is already in the correct format (list)
+                            processed_vector = {"vector": vector}
+                        processed_vectors.append(processed_vector)
+                    update["slt_vectors"] = processed_vectors
+
+                # Process SLT type vectors if present
+                if "slt_type_vectors" in update:
+                    processed_vectors = []
+                    for vector in update["slt_type_vectors"]:
+                        if isinstance(vector, np.ndarray):
+                            processed_vector = {"vector": vector.tolist()}
+                        elif isinstance(vector, dict):
+                            processed_vector = {}
+                            if "vector" in vector:
+                                processed_vector["vector"] = (
+                                    vector["vector"].tolist()
+                                    if isinstance(vector["vector"], np.ndarray)
+                                    else vector["vector"]
+                                )
+                            if "formula_index" in vector:
+                                processed_vector["formula_index"] = vector[
+                                    "formula_index"
+                                ]
+                            if "formula_text" in vector:
+                                processed_vector["formula_text"] = vector[
+                                    "formula_text"
+                                ]
+                        else:
+                            # Assuming vector is already in the correct format (list)
+                            processed_vector = {"vector": vector}
+                        processed_vectors.append(processed_vector)
+                    update["slt_type_vectors"] = processed_vectors
+
+                # Process OPT vectors if present
+                if "opt_vectors" in update:
+                    processed_vectors = []
+                    for vector in update["opt_vectors"]:
+                        if isinstance(vector, np.ndarray):
+                            processed_vector = {"vector": vector.tolist()}
+                        elif isinstance(vector, dict):
+                            processed_vector = {}
+                            if "vector" in vector:
+                                processed_vector["vector"] = (
+                                    vector["vector"].tolist()
+                                    if isinstance(vector["vector"], np.ndarray)
+                                    else vector["vector"]
+                                )
+                            if "formula_index" in vector:
+                                processed_vector["formula_index"] = vector[
+                                    "formula_index"
+                                ]
+                            if "formula_text" in vector:
+                                processed_vector["formula_text"] = vector[
+                                    "formula_text"
+                                ]
+                        else:
+                            # Assuming vector is already in the correct format (list)
+                            processed_vector = {"vector": vector}
+                        processed_vectors.append(processed_vector)
+                    update["opt_vectors"] = processed_vectors
 
                 # Build bulk actions
                 action = {"update": {"_index": self.index_name, "_id": post_id}}
@@ -252,21 +485,11 @@ class ElasticsearchService:
 
             # 🔥 Execute bulk OUTSIDE the loop
             response = self.es.bulk(operations=bulk_data, refresh=True)
-            print("Response of update", response)
 
             return not response.get("errors", False)
 
         except Exception as e:
             print(f"Error bulk updating posts: {str(e)}")
-            return False
-
-    def delete_index(self):
-        """Delete the Elasticsearch index."""
-        try:
-            self.es.indices.delete(index=self.index_name)
-            return True
-        except Exception as e:
-            print(f"Error deleting index: {str(e)}")
             return False
 
     def create_index(self):
@@ -341,6 +564,45 @@ class ElasticsearchService:
                             "formula_text": {"type": "text", "index": True},
                         },
                     },
+                    "slt_vectors": {
+                        "type": "nested",
+                        "properties": {
+                            "vector": {
+                                "type": "dense_vector",
+                                "dims": 300,
+                                "index": True,
+                                "similarity": "cosine",
+                            },
+                            "formula_index": {"type": "integer"},
+                            "formula_text": {"type": "text", "index": True},
+                        },
+                    },
+                    "slt_type_vectors": {
+                        "type": "nested",
+                        "properties": {
+                            "vector": {
+                                "type": "dense_vector",
+                                "dims": 300,
+                                "index": True,
+                                "similarity": "cosine",
+                            },
+                            "formula_index": {"type": "integer"},
+                            "formula_text": {"type": "text", "index": True},
+                        },
+                    },
+                    "opt_vectors": {
+                        "type": "nested",
+                        "properties": {
+                            "vector": {
+                                "type": "dense_vector",
+                                "dims": 300,
+                                "index": True,
+                                "similarity": "cosine",
+                            },
+                            "formula_index": {"type": "integer"},
+                            "formula_text": {"type": "text", "index": True},
+                        },
+                    },
                     "formulas": {"type": "text", "index": True},
                     "formulas_ids": {"type": "integer"},
                     "formulas_mathml": {"type": "text", "index": True},
@@ -359,16 +621,6 @@ class ElasticsearchService:
             print(f"Created index {self.index_name} with new mapping")
         except Exception as e:
             print(f"Error creating index: {str(e)}")
-
-    def search_posts_after_id(self, last_post_id: int, size: int = 100):
-        body = {
-            "size": size,
-            "query": {"range": {"post_id": {"gt": last_post_id}}},
-            "sort": [{"post_id": "asc"}],
-        }
-
-        res = self.es.search(index=self.index_name, body=body)
-        return [hit["_source"] for hit in res["hits"]["hits"]]
 
     def bulk_update_text_vector(self, posts: list):
         from elasticsearch.helpers import bulk

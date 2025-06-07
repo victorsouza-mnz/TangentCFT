@@ -83,9 +83,7 @@ def process_post(elem):
         "formulas": [],
         "formulas_mathml": [],
         "formulas_latex": [],
-        "formulas_slt_vectors": [],
-        "formulas_slt_type_vectors": [],
-        "formulas_opt_vectors": [],
+        "formula_vectors": [],
         "formulas_ids": [],
     }
 
