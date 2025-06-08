@@ -72,7 +72,7 @@ def process_post(elem):
         print(text)
         print("text without formula:")
         print(text_without_formula)
-    if not (text or full_text_without_html):
+    if not (text):
         return None
 
     return {

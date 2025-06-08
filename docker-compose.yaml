@@ -11,7 +11,4 @@ services:
     ports:
       - 9200:9200
     volumes:
-      - elastic_data:/usr/share/elasticsearch/data
-
-volumes:
-  elastic_data:
+      - /mnt/victor2/elasticsearch_data:/usr/share/elasticsearch/data

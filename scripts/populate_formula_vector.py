@@ -2,6 +2,7 @@
 import sys
 import os
 
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import csv
@@ -316,138 +317,127 @@ def update_formula_vectors_in_posts(
 
 def combine_all_vectors(elastic_service, batch_size=100):
     """
-    Process all documents in the index and combine their formula vectors.
-
-    Args:
-        elastic_service: Elasticsearch service instance
-        batch_size: Number of documents to process in each batch
+    Process documents to create combined formula vectors only if:
+    - slt_vectors, slt_type_vectors, opt_vectors all exist and are non-empty,
+    - all have the same length,
+    - and share identical formula_index sets.
     """
     print("Starting to combine all formula vectors...")
 
-    # Get total count of documents
-    count_query = {"query": {"match_all": {}}}
-    count_result = elastic_service.es.count(
-        index=elastic_service.index_name, body=count_query
-    )
-    total_docs = count_result["count"]
+    scroll_time = "5m"
 
-    print(f"Total documents to process: {total_docs}")
-
-    # Process documents in batches
-    processed = 0
-    scroll_time = "5m"  # Keep the search context alive for 5 minutes
-
-    # Initialize the scroll
+    # CORREÇÃO: usar nested queries para garantir que os arrays tenham pelo menos um objeto válido
     search_query = {
         "query": {
             "bool": {
-                "should": [
-                    {"exists": {"field": "slt_vectors"}},
-                    {"exists": {"field": "slt_type_vectors"}},
-                    {"exists": {"field": "opt_vectors"}},
-                ],
-                "minimum_should_match": 1,
+                "must": [
+                    {
+                        "nested": {
+                            "path": "slt_vectors",
+                            "query": {"exists": {"field": "slt_vectors.formula_index"}},
+                        }
+                    },
+                    {
+                        "nested": {
+                            "path": "slt_type_vectors",
+                            "query": {
+                                "exists": {"field": "slt_type_vectors.formula_index"}
+                            },
+                        }
+                    },
+                    {
+                        "nested": {
+                            "path": "opt_vectors",
+                            "query": {"exists": {"field": "opt_vectors.formula_index"}},
+                        }
+                    },
+                ]
             }
         },
         "size": batch_size,
     }
 
-    # Start the initial scroll
     result = elastic_service.es.search(
         index=elastic_service.index_name, body=search_query, scroll=scroll_time
     )
 
-    print(f"Initial scroll result: {result['hits']}")
+    print(f"Found {result['hits']['total']['value']} documents to process")
 
-    # Get the scroll_id
     scroll_id = result["_scroll_id"]
     hits = result["hits"]["hits"]
 
+    processed = 0
     bulk_updates = []
 
-    while len(hits) > 0:
+    while hits:
         for hit in hits:
             post_id = hit["_id"]
             source = hit["_source"]
 
             try:
-                # Get all vector types
-                slt_vectors = source.get("slt_vectors", [])
-                slt_type_vectors = source.get("slt_type_vectors", [])
-                opt_vectors = source.get("opt_vectors", [])
+                slt = source.get("slt_vectors", [])
+                slt_type = source.get("slt_type_vectors", [])
+                opt = source.get("opt_vectors", [])
 
-                # Create a dictionary to hold combined vectors by formula_index
-                combined_vectors = {}
+                if not slt or not slt_type or not opt:
+                    print(f"No vectors found for post {post_id}, skipping...")
+                    continue
+                if not (len(slt) == len(slt_type) == len(opt)):
+                    print(
+                        f"Vectors have different lengths for post {post_id}, skipping..."
+                    )
+                    continue
 
-                # Process SLT vectors
-                for vec in slt_vectors:
-                    idx = vec.get("formula_index")
-                    if idx is not None:
-                        if idx not in combined_vectors:
-                            combined_vectors[idx] = {
-                                "vector": np.array(vec.get("vector", [])),
-                                "formula_text": vec.get("formula_text", ""),
-                                "formula_index": idx,
-                            }
-                        else:
-                            combined_vectors[idx]["vector"] = np.array(
-                                vec.get("vector", [])
-                            )
+                print(f"Processing post {post_id} with {len(slt)} vectors")
 
-                # Process SLT_TYPE vectors and add to existing
-                for vec in slt_type_vectors:
-                    idx = vec.get("formula_index")
-                    if idx is not None:
-                        if idx not in combined_vectors:
-                            combined_vectors[idx] = {
-                                "vector": np.array(vec.get("vector", [])),
-                                "formula_text": vec.get("formula_text", ""),
-                                "formula_index": idx,
-                            }
-                        else:
-                            combined_vectors[idx]["vector"] += np.array(
-                                vec.get("vector", [])
-                            )
+                idx_slt = {v["formula_index"] for v in slt if "formula_index" in v}
+                idx_type = {
+                    v["formula_index"] for v in slt_type if "formula_index" in v
+                }
+                idx_opt = {v["formula_index"] for v in opt if "formula_index" in v}
 
-                # Process OPT vectors and add to existing
-                for vec in opt_vectors:
-                    idx = vec.get("formula_index")
-                    if idx is not None:
-                        if idx not in combined_vectors:
-                            combined_vectors[idx] = {
-                                "vector": np.array(vec.get("vector", [])),
-                                "formula_text": vec.get("formula_text", ""),
-                                "formula_index": idx,
-                            }
-                        else:
-                            combined_vectors[idx]["vector"] += np.array(
-                                vec.get("vector", [])
-                            )
+                common_indices = idx_slt & idx_type & idx_opt
 
-                # Convert back to list format
-                result_vectors = []
-                for idx, data in combined_vectors.items():
-                    result_vectors.append(
+                if len(common_indices) != len(slt):
+                    print(
+                        f"Common indices have different lengths for post {post_id}, skipping..."
+                    )
+                    continue
+
+                slt_map = {v["formula_index"]: v for v in slt}
+                slt_type_map = {v["formula_index"]: v for v in slt_type}
+                opt_map = {v["formula_index"]: v for v in opt}
+
+                combined = []
+                for idx in sorted(common_indices):
+                    vec1 = np.array(slt_map[idx].get("vector", []))
+                    vec2 = np.array(slt_type_map[idx].get("vector", []))
+                    vec3 = np.array(opt_map[idx].get("vector", []))
+
+                    if vec1.size == 0 or vec2.size == 0 or vec3.size == 0:
+                        continue
+
+                    total = vec1 + vec2 + vec3
+                    combined.append(
                         {
-                            "vector": data["vector"].tolist(),
+                            "vector": total.tolist(),
                             "formula_index": idx,
-                            "formula_text": data["formula_text"],
+                            "formula_text": slt_map[idx].get("formula_text", ""),
                         }
                     )
 
-                if result_vectors:
+                if combined:
                     bulk_updates.append(
-                        {"post_id": post_id, "formula_vectors": result_vectors}
+                        {"post_id": post_id, "formula_vectors": combined}
                     )
 
             except Exception as e:
-                print(f"Error processing document {post_id}: {str(e)}")
+                print(f"Error processing document {post_id}: {e}")
 
             processed += 1
             if processed % 100 == 0:
                 print(f"Processed {processed} documents")
 
-        # Perform bulk update for this batch
         if bulk_updates:
             try:
                 print(
@@ -455,19 +445,114 @@ def combine_all_vectors(elastic_service, batch_size=100):
                 )
                 success = elastic_service.bulk_update_posts(bulk_updates)
                 print(f"Combined vectors update completed: {success}")
-                bulk_updates = []  # Reset for next batch
+                bulk_updates = []
             except Exception as e:
-                print(f"Error updating documents with combined vectors: {e}")
+                print(f"Error during bulk update: {e}")
 
-        # Get the next batch
         result = elastic_service.es.scroll(scroll_id=scroll_id, scroll=scroll_time)
         scroll_id = result["_scroll_id"]
         hits = result["hits"]["hits"]
 
-    # Clear the scroll context
+    elastic_service.es.clear_scroll(scroll_id=scroll_id)
+    print(f"Completed processing {processed} documents with combined vectors")
+
+
+def delete_posts_without_formula_vectors(elastic_service, batch_size=1000):
+    """
+    Delete posts that don't have formula_vectors populated.
+    """
+    print("Starting to delete posts without formula_vectors...")
+
+    # Query to find documents that DON'T have formula_vectors.vector
+    search_query = {
+        "query": {
+            "bool": {
+                "must_not": [
+                    {
+                        "nested": {
+                            "path": "formula_vectors",
+                            "query": {"exists": {"field": "formula_vectors.vector"}},
+                        }
+                    }
+                ]
+            }
+        },
+        "size": batch_size,
+    }
+
+    scroll_time = "5m"
+
+    # First, count total documents to delete
+    count_result = elastic_service.es.count(
+        index=elastic_service.index_name, body={"query": search_query["query"]}
+    )
+    total_to_delete = count_result["count"]
+    print(f"Found {total_to_delete} documents without formula_vectors to delete")
+
+    if total_to_delete == 0:
+        print("No documents to delete")
+        return
+
+    # Confirm before proceeding with deletion
+    print(
+        f"⚠️  About to delete {total_to_delete} documents. This action cannot be undone!"
+    )
+
+    # Start scroll search
+    result = elastic_service.es.search(
+        index=elastic_service.index_name, body=search_query, scroll=scroll_time
+    )
+
+    scroll_id = result["_scroll_id"]
+    hits = result["hits"]["hits"]
+
+    deleted_count = 0
+    bulk_delete_ops = []
+
+    while hits:
+        # Prepare bulk delete operations
+        for hit in hits:
+            bulk_delete_ops.append(
+                {"delete": {"_index": elastic_service.index_name, "_id": hit["_id"]}}
+            )
+
+        # Execute bulk delete when batch is full
+        if len(bulk_delete_ops) >= batch_size:
+            try:
+                response = elastic_service.es.bulk(body=bulk_delete_ops)
+
+                # Count successful deletions
+                for item in response["items"]:
+                    if "delete" in item and item["delete"]["status"] == 200:
+                        deleted_count += 1
+
+                print(f"Deleted batch: {deleted_count}/{total_to_delete}")
+                bulk_delete_ops = []
+
+            except Exception as e:
+                print(f"Error during bulk delete: {e}")
+
+        # Get next batch
+        result = elastic_service.es.scroll(scroll_id=scroll_id, scroll=scroll_time)
+        scroll_id = result["_scroll_id"]
+        hits = result["hits"]["hits"]
+
+    # Delete remaining operations
+    if bulk_delete_ops:
+        try:
+            response = elastic_service.es.bulk(body=bulk_delete_ops)
+
+            for item in response["items"]:
+                if "delete" in item and item["delete"]["status"] == 200:
+                    deleted_count += 1
+
+        except Exception as e:
+            print(f"Error during final bulk delete: {e}")
+
+    # Clear scroll
     elastic_service.es.clear_scroll(scroll_id=scroll_id)
 
-    print(f"Completed processing {processed} documents with combined vectors")
+    print(f"✅ Completed deletion: {deleted_count} documents removed")
 
 
 def main():
@@ -509,13 +594,14 @@ def main():
         file_counter += 1
         print(f"Processed OPT: {file_counter} of {len(opt_files)} files")
 
-    # Step 2: After all vector types are processed, combine them
+    # # Step 2: After all vector types are processed, combine them
     print("\nAll vector types processed. Now combining vectors...")
     combine_all_vectors(elastic_service)
+
+    # Step 3: Delete posts without formula_vectors
+    print("\nCombined vectors processed. Now deleting posts without formula_vectors...")
+    delete_posts_without_formula_vectors(elastic_service)
 
 
 if __name__ == "__main__":
     main()
-
-
-# TODO INVESTIGAR PQ ESSE NAO TA CRIANDO O COMBINED VECTOR

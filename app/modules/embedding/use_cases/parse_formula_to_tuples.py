@@ -17,8 +17,6 @@ class ParseFormulaToTuplesUseCase:
         try:
             # Converter MathML para Symbol Layout Tree
             # Even when send only one formula, the result is a dictionary of SymbolTrees
-            if operator == True:
-                print("converting formula", formula, "to OPT")
             trees = MathExtractor.parse_from_xml(
                 formula,
                 content_id=1,  # ID temporário
@@ -26,9 +24,6 @@ class ParseFormulaToTuplesUseCase:
                 missing_tags=None,
                 problem_files=None,
             )
-
-            if operator == True:
-                print("trees:", trees)
 
             for key in trees:
                 tuples = trees[key].get_pairs(window=2, eob=True)
