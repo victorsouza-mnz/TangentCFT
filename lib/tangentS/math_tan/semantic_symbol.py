@@ -643,6 +643,10 @@ class SemanticSymbol(MathSymbol):
                     "very-much-greater-than",
                     "very-much-less-than",
                     "weierstrass-p",
+                    "subgroup-of-or-equals",
+                    "implied-by",
+                    "double-factorial",
+                    "multiple-integral",
                 ]:
                     retval = SemanticSymbol("O!" + content, parent=parent)
 
@@ -665,6 +669,12 @@ class SemanticSymbol(MathSymbol):
                 elif content == "square-root":
                     # by default, degree two (squared root) will be generated at the parent node
                     retval = SemanticSymbol("O!root", parent=parent)
+                elif content == "differential-d":
+                    retval = SemanticSymbol("O!d", parent=parent)
+                elif content == "conditional":
+                    retval = SemanticSymbol("O!if", parent=parent)
+                elif content == "matrix":
+                    retval = SemanticSymbol("O!matrix", parent=parent)
 
                 if retval is None:
                     # check if content can be parsed as a number ... (it happens .... sometimes ... )
@@ -675,7 +685,21 @@ class SemanticSymbol(MathSymbol):
                     except:
                         # do nothing ...
                         pass
-
+            elif cd == "mws":
+                if content == "qvar_":
+                    retval = SemanticSymbol("?" + content[5:], parent=parent)
+                if content == "qvar_$":
+                    retval = SemanticSymbol("?" + content[6:], parent=parent)
+                if content == "qvar_&quest":
+                    retval = SemanticSymbol("?" + content[11:], parent=parent)
+                if content == "qvar_&quest;":
+                    retval = SemanticSymbol("?" + content[12:], parent=parent)
+                if content == "qvar_i":
+                    retval = SemanticSymbol("?" + content[6:], parent=parent)
+                if content == "qvar_missing":
+                    retval = SemanticSymbol("?" + content[12:], parent=parent)
+                if content == "qvar_.":
+                    retval = SemanticSymbol("?" + content[6:], parent=parent)
             elif cd == "ambiguous":
                 if content == "formulae-sequence":
                     retval = SemanticSymbol("O!form-seq", parent=parent)
@@ -692,11 +716,10 @@ class SemanticSymbol(MathSymbol):
                 # Unknown type ...
                 retval = SemanticSymbol("-!" + content, parent=parent)
 
-            print("retval", retval)
             if retval is None:
-                # file_out = open("missing_csymbol.txt", "a")
-                # file_out.write(content + "," + cd + "\n")
-                # file_out.close()
+                file_out = open("missing_csymbol.txt", "a")
+                file_out.write(content + "," + cd + "\n")
+                file_out.close()
 
                 # retval = SemanticSymbol("-!" + content, parent=parent)
                 raise UnknownTagException("csymbol:" + content)

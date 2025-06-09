@@ -35,7 +35,7 @@ class GetSLTOptAndTypeCombinedFormulaVectorUseCase:
 
     def execute(self, formula: str):
         # TODO: aqui vai ser diferente para cada tipo de embedding
-        # Ainda assim ta errado, que pensar em uma forma de mandar o opt, se mandar essa formula direto
+        # Ainda assim ta errado, tenho que pensar em uma forma de mandar o opt, se mandar essa formula direto
         # vai dar merda.
         slt_and_slt_type_formula_tuples = (
             make_parse_formula_to_tuples_use_case().execute(formula, operator=False)

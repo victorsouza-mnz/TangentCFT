@@ -61,6 +61,10 @@ def process_post(elem):
     soup = BeautifulSoup(text, "html.parser")
 
     full_text_without_html = soup.get_text(separator=" ", strip=True)
+
+    # Contar o número de fórmulas antes de removê-las
+    formulas_count = len(soup.select(".math-container"))
+
     for el in soup.select(".math-container"):
         el.decompose()
 
@@ -80,6 +84,7 @@ def process_post(elem):
         "text": text,
         "text_latex_search": clean_text(full_text_without_html),
         "text_without_formula": text_without_formula,
+        "formulas_count": formulas_count,  # Novo campo com o número de fórmulas
         "formulas": [],
         "formulas_mathml": [],
         "formulas_latex": [],
@@ -116,7 +121,13 @@ def index_posts_from_xml(elastic_service):
     for event, elem in context:
         if elem.tag == "row":
             post_id = int(elem.attrib.get("Id"))
+            post_type_id = elem.attrib.get("PostTypeId")
             current_post += 1
+
+            # Só processar posts do tipo 1 (questions)
+            if post_type_id != "1":
+                elem.clear()
+                continue
 
             if post_id <= last_post_id:
                 elem.clear()
@@ -133,26 +144,30 @@ def index_posts_from_xml(elastic_service):
                 )
                 save_checkpoint(post_id)
                 # Printar progresso apenas no final de cada batch
-                print(f"Post atual / total: {current_post} / {total_posts}")
+                print(
+                    f"Posts tipo 1 processados: {processed_posts}/{MAX_POSTS} (Post atual: {current_post}/{total_posts})"
+                )
                 batch = []
 
             elem.clear()
 
-            # Stop after processing MAX_POSTS
+            # Stop after processing MAX_POSTS of type 1
             if processed_posts >= MAX_POSTS:
-                print(f"Reached limit of {MAX_POSTS} posts. Stopping.")
+                print(f"Reached limit of {MAX_POSTS} posts of type 1. Stopping.")
                 break
 
     if batch:
         futures.append(executor.submit(index_batch, elastic_service, batch.copy()))
         save_checkpoint(post_id)
-        print(f"Post atual / total: {current_post} / {total_posts}")
+        print(
+            f"Posts tipo 1 processados: {processed_posts}/{MAX_POSTS} (Post atual: {current_post}/{total_posts})"
+        )
 
     for f in futures:
         f.result()  # garante que todas as tarefas terminaram
 
     print(
-        f"Indexação finalizada: {processed_posts} posts processados de {current_post} analisados"
+        f"Indexação finalizada: {processed_posts} posts do tipo 1 processados de {current_post} posts analisados"
     )
 
 

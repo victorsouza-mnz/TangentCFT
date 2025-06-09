@@ -55,7 +55,7 @@ def fetch_posts_from_elastic(last_post_id, size=BATCH_SIZE):
         "sort": [{"post_id": "asc"}],
     }
 
-    res = elastic_service.es.search(index=elastic_service.index_name, body=body)
+    res = elastic_service.es.search(index=elastic_service.posts_index_name, body=body)
     return [hit["_source"] for hit in res["hits"]["hits"]]
 
 
@@ -120,7 +120,9 @@ def count_total_posts():
     }
 
     try:
-        result = elastic_service.es.search(index=elastic_service.index_name, body=query)
+        result = elastic_service.es.search(
+            index=elastic_service.posts_index_name, body=query
+        )
         return result["hits"]["total"]["value"]
     except Exception as e:
         print(f"Error getting post count: {e}")

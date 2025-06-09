@@ -20,7 +20,7 @@ class ParseFormulaToTuplesUseCase:
             trees = MathExtractor.parse_from_xml(
                 formula,
                 content_id=1,  # ID temporário
-                operator=operator,  # Usar SLT (Symbol Layout Tree)
+                operator=operator,
                 missing_tags=None,
                 problem_files=None,
             )

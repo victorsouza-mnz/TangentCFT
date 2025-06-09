@@ -1,6 +1,6 @@
 from services.elasticsearch_service import ElasticsearchService
-from app.modules.embedding.use_cases.get_text_embedding import (
-    make_get_text_embedding_use_case,
+from app.modules.embedding.use_cases.get_text_vector import (
+    make_get_text_vector_use_case,
 )
 from typing import List, Dict, Any
 
@@ -12,7 +12,7 @@ class SearchTextVectorUseCase:
 
     def __init__(self, elasticsearch_service: ElasticsearchService):
         self.elasticsearch_service = elasticsearch_service
-        self.get_text_embedding_use_case = make_get_text_embedding_use_case()
+        self.get_text_vector_use_case = make_get_text_vector_use_case()
 
     def execute(self, query: str, size: int = 10) -> List[Dict[str, Any]]:
         """
@@ -27,14 +27,15 @@ class SearchTextVectorUseCase:
         """
         try:
             # Gerar o vetor de embedding para a consulta
-            # TODO remove formula from query
-            query_vector = self.get_text_embedding_use_case.execute(query)
+            # TODO: dar um .tolist() no query_vector caso precise
+            query_vector = self.get_text_vector_use_case.execute(query)
 
             if query_vector is None:
                 print("Failed to generate embedding for query")
                 return []
 
             # Prepara a query de similaridade vetorial
+            # TODO verficar se a query com dense vector é feita dessa forma
             search_query = {
                 "knn": {
                     "field": "text_without_formula_vector",
