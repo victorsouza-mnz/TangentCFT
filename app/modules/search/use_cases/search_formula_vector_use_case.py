@@ -1,53 +1,74 @@
-from collections import defaultdict
+from services.elasticsearch_service import ElasticsearchService
+
+FORMULAS_INDEX = "formulas"
 
 
-# TODO da para parelelizar ou cirar nova index de formulas
 class SearchFormulaVectorUseCase:
-    def __init__(self, es_client, index_name: str):
-        self.es = es_client
-        self.index = index_name
+    def __init__(self, es: ElasticsearchService, vector_type: str = "formula_vector"):
+        self.es = es
+        self.vector_type = vector_type
 
-    def execute(self, formula_vectors: list[list[float]], top_k: int = 10):
-        scores_by_doc = defaultdict(float)
-
-        for vector in formula_vectors:
-            response = self.es.search(
-                index=self.index,
-                size=top_k
-                * 2,  # busca mais resultados por vetor (ajuda na fusão final)
-                query={
-                    "nested": {
-                        "path": "formula_vectors",
-                        "score_mode": "max",
-                        "query": {
-                            "script_score": {
-                                "query": {"match_all": {}},
-                                "script": {
-                                    "source": "cosineSimilarity(params.vector, 'formula_vectors.vector')",
-                                    "params": {"vector": vector},
-                                },
-                            }
-                        },
-                    }
-                },
+        # Validate vector type
+        valid_types = ["formula_vector", "slt_vector", "slt_type_vector", "opt_vector"]
+        if vector_type not in valid_types:
+            raise ValueError(
+                f"Invalid vector_type '{vector_type}'. Must be one of: {valid_types}"
             )
 
-            for hit in response["hits"]["hits"]:
-                doc_id = hit["_id"]
-                score = hit["_score"]
-                # Estratégia: acumula o maior score obtido por esse doc (poderia somar ou média também)
-                scores_by_doc[doc_id] = max(scores_by_doc[doc_id], score)
+    def execute(self, formula_vector: list, top_k: int):
+        """
+        Execute vector similarity search.
 
-        # Ordena os documentos por score acumulado e retorna os top_k
-        sorted_results = sorted(
-            scores_by_doc.items(), key=lambda x: x[1], reverse=True
-        )[:top_k]
+        Args:
+            formula_vector: Single query vector
+            top_k: Number of top results to return
 
-        # Busca os documentos completos para retorno
-        if sorted_results:
-            ids = [doc_id for doc_id, _ in sorted_results]
-            docs = self.es.mget(index=self.index, ids=ids)["docs"]
-            docs_by_id = {doc["_id"]: doc for doc in docs if doc["found"]}
-            return [docs_by_id[doc_id] for doc_id, _ in sorted_results]
+        Returns:
+            List of search results with score and document id
+        """
+        search_query = {
+            "knn": {
+                "field": self.vector_type,
+                "query_vector": formula_vector,
+                "k": top_k,
+                "num_candidates": top_k * 2,
+            }
+        }
+        # Executa a busca
+        results = self.es.es.knn_search(
+            index=self.es.formulas_index_name, body=search_query
+        )
 
-        return []
+        # Format results to return score and document id
+        formatted_results = []
+        for hit in results["hits"]["hits"]:
+            source = hit["_source"]
+            formatted_results.append(
+                {
+                    "score": hit["_score"],
+                    "formula_id": source.get("formula_id"),
+                    "document_id": hit["_id"],
+                }
+            )
+
+        return formatted_results
+
+
+def make_search_formula_vector_use_case(vector_type: str = "formula_vector"):
+    """
+    Factory function to create SearchFormulaVectorUseCase.
+
+    Args:
+        vector_type: Type of vector to search on. Options:
+                    - "formula_vector" (default): Combined vector
+                    - "slt_vector": SLT representation vector
+                    - "slt_type_vector": SLT type representation vector
+                    - "opt_vector": OPT representation vector
+
+    Returns:
+        SearchFormulaVectorUseCase instance
+    """
+    from services.elasticsearch_service import ElasticsearchService
+
+    es_service = ElasticsearchService()
+    return SearchFormulaVectorUseCase(es_service, vector_type)

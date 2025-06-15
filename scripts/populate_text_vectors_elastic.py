@@ -70,7 +70,7 @@ def process_batch(posts):
 
     for post in posts:
         post_id = post.get("post_id")
-        text = post.get("text_without_formula")
+        text = post.get("text_without_html")
 
         if post_id and text:
             post_ids.append(post_id)
@@ -92,6 +92,7 @@ def process_batch(posts):
         # Create update objects
         updates = []
         for i, post_id in enumerate(post_ids):
+            # TODO change the name of the field to text_without_formula_vector
             updates.append(
                 {"post_id": post_id, "text_without_formula_vector": vectors[i].tolist()}
             )

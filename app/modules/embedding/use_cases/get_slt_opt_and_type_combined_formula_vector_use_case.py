@@ -9,6 +9,8 @@ from app.modules.embedding.use_cases.encode_formula_tuples import (
 )
 
 from lib.tangentCFT.touple_encoder.encoder import TupleTokenizationMode
+from enum import Enum
+from typing import List, Optional, Dict, Any
 
 
 class EncodeFormulaTuplesUseCaseParams(Enum):
@@ -33,54 +35,119 @@ class EncodeFormulaTuplesUseCaseParams(Enum):
 
 class GetSLTOptAndTypeCombinedFormulaVectorUseCase:
 
-    def execute(self, formula: str):
-        # TODO: aqui vai ser diferente para cada tipo de embedding
-        # Ainda assim ta errado, tenho que pensar em uma forma de mandar o opt, se mandar essa formula direto
-        # vai dar merda.
-        slt_and_slt_type_formula_tuples = (
-            make_parse_formula_to_tuples_use_case().execute(formula, operator=False)
+    def execute(
+        self,
+        formula: str,
+        vector_types: List[str] = ["slt", "slt_type", "opt", "combined"],
+    ):
+        """
+        Generate formula vectors for specified representations.
+
+        Args:
+            formula: Formula string to process
+            vector_types: List of vector types to generate. Options: "slt", "slt_type", "opt", "combined"
+
+        Returns:
+            Dictionary with requested vector types:
+            {
+                "slt_vector": numpy array (if requested),
+                "slt_type_vector": numpy array (if requested),
+                "opt_vector": numpy array (if requested),
+                "formula_vector": numpy array (combined, if requested)
+            }
+            Returns None if formula cannot be processed.
+        """
+        result = {}
+
+        # Normalize vector_types to lowercase
+        vector_types = [vt.lower() for vt in vector_types]
+
+        # Check if we need SLT or SLT_TYPE vectors
+        need_slt_tuples = (
+            "slt" in vector_types
+            or "slt_type" in vector_types
+            or "combined" in vector_types
         )
-        opt_formula_tuples = make_parse_formula_to_tuples_use_case().execute(
-            formula, operator=True
-        )
+        need_opt_tuples = "opt" in vector_types or "combined" in vector_types
 
-        if not slt_and_slt_type_formula_tuples or not opt_formula_tuples:
-            print(f"No tuples generated for formula {formula}, skipping...")
-            return None
+        # Parse formula tuples only if needed
+        slt_and_slt_type_formula_tuples = None
+        opt_formula_tuples = None
 
-        slt_encoded_tuples = make_encode_formula_tuples_use_case().execute(
-            slt_and_slt_type_formula_tuples,
-            **EncodeFormulaTuplesUseCaseParams.SLT.value,
-        )
+        if need_slt_tuples:
+            slt_and_slt_type_formula_tuples = (
+                make_parse_formula_to_tuples_use_case().execute(formula, operator=False)
+            )
+            if not slt_and_slt_type_formula_tuples:
+                print(f"No SLT tuples generated for formula {formula}, skipping...")
+                return None
 
-        slt_type_encoded_tuples = make_encode_formula_tuples_use_case().execute(
-            slt_and_slt_type_formula_tuples,
-            **EncodeFormulaTuplesUseCaseParams.SLT_TYPE.value,
-        )
+        if need_opt_tuples:
+            opt_formula_tuples = make_parse_formula_to_tuples_use_case().execute(
+                formula, operator=True
+            )
+            if not opt_formula_tuples:
+                print(f"No OPT tuples generated for formula {formula}, skipping...")
+                return None
 
-        opt_encoded_tuples = make_encode_formula_tuples_use_case().execute(
-            opt_formula_tuples,
-            **EncodeFormulaTuplesUseCaseParams.OPT.value,
-        )
+        # Generate vectors only for requested types
+        slt_vector = None
+        slt_type_vector = None
+        opt_vector = None
 
-        slt_vector = make_get_formula_vector_by_formula_encoded_tuples_use_case(
-            "SLT"
-        ).execute(slt_encoded_tuples)
+        if "slt" in vector_types or "combined" in vector_types:
+            slt_encoded_tuples = make_encode_formula_tuples_use_case().execute(
+                slt_and_slt_type_formula_tuples,
+                **EncodeFormulaTuplesUseCaseParams.SLT.value,
+            )
+            slt_vector = make_get_formula_vector_by_formula_encoded_tuples_use_case(
+                "SLT"
+            ).execute(slt_encoded_tuples)
+            result["slt_vector"] = slt_vector
 
-        opt_vector = make_get_formula_vector_by_formula_encoded_tuples_use_case(
-            "OPT"
-        ).execute(opt_encoded_tuples)
+        if "slt_type" in vector_types or "combined" in vector_types:
+            slt_type_encoded_tuples = make_encode_formula_tuples_use_case().execute(
+                slt_and_slt_type_formula_tuples,
+                **EncodeFormulaTuplesUseCaseParams.SLT_TYPE.value,
+            )
+            slt_type_vector = (
+                make_get_formula_vector_by_formula_encoded_tuples_use_case(
+                    "SLT_TYPE"
+                ).execute(slt_type_encoded_tuples)
+            )
+            result["slt_type_vector"] = slt_type_vector
 
-        slt_type_vector = make_get_formula_vector_by_formula_encoded_tuples_use_case(
-            "SLT_TYPE"
-        ).execute(slt_type_encoded_tuples)
+        if "opt" in vector_types or "combined" in vector_types:
+            opt_encoded_tuples = make_encode_formula_tuples_use_case().execute(
+                opt_formula_tuples,
+                **EncodeFormulaTuplesUseCaseParams.OPT.value,
+            )
+            opt_vector = make_get_formula_vector_by_formula_encoded_tuples_use_case(
+                "OPT"
+            ).execute(opt_encoded_tuples)
+            result["opt_vector"] = opt_vector
 
-        combined_vector = combine_vector(slt_vector, opt_vector, slt_type_vector)
+        if "combined" in vector_types:
+            if (
+                slt_vector is not None
+                and opt_vector is not None
+                and slt_type_vector is not None
+            ):
+                combined_vector = combine_vector(
+                    slt_vector, opt_vector, slt_type_vector
+                )
+                result["formula_vector"] = combined_vector
+            else:
+                print(
+                    "Cannot create combined vector: missing required component vectors"
+                )
 
-        return combined_vector
+        return result
 
 
-def make_get_slt_opt_and_type_combined_formula_vector_use_case():
+def make_get_slt_opt_and_type_combined_formula_vector_use_case() -> (
+    GetSLTOptAndTypeCombinedFormulaVectorUseCase
+):
     return GetSLTOptAndTypeCombinedFormulaVectorUseCase()
 
 

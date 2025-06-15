@@ -11,7 +11,7 @@ import threading
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-from scripts.utils.text_celaner import clean_text
+from app.modules.shared.text_celaner import clean_text
 import xml.etree.ElementTree as ET
 from tqdm import tqdm
 import html
@@ -58,17 +58,26 @@ def process_post(elem):
     title = html.unescape(elem.attrib.get("Title", ""))
 
     text = f"{title} {body}" if title else body
-    soup = BeautifulSoup(text, "html.parser")
 
-    full_text_without_html = soup.get_text(separator=" ", strip=True)
+    latex_soup = BeautifulSoup(text, "html.parser")
+    text_soup = BeautifulSoup(text, "html.parser")
+
+    for span in latex_soup.find_all("span", class_="math-container"):
+        inner = span.get_text()
+        span.replace_with(f"${inner}$")
+
+    latex_text = latex_soup.get_text(separator=" ", strip=True)
+    clanned_latex_text = clean_text(latex_text)
+
+    full_text_without_html = text_soup.get_text(separator=" ", strip=True)
 
     # Contar o número de fórmulas antes de removê-las
-    formulas_count = len(soup.select(".math-container"))
+    formulas_count = len(text_soup.select(".math-container"))
 
-    for el in soup.select(".math-container"):
+    for el in text_soup.select(".math-container"):
         el.decompose()
 
-    text_without_formula = soup.get_text(separator=" ", strip=True)
+    text_without_formula = text_soup.get_text(separator=" ", strip=True)
 
     if len(text) == 0 or len(text_without_formula) == 0:
         print("Erro texto vazio por algum motivo")
@@ -82,9 +91,10 @@ def process_post(elem):
     return {
         "post_id": post_id,
         "text": text,
-        "text_latex_search": clean_text(full_text_without_html),
+        "text_without_html": full_text_without_html,
+        "text_latex_search": clanned_latex_text,
         "text_without_formula": text_without_formula,
-        "formulas_count": formulas_count,  # Novo campo com o número de fórmulas
+        "formulas_count": formulas_count,
         "formulas": [],
         "formulas_mathml": [],
         "formulas_latex": [],

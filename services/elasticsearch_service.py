@@ -353,6 +353,10 @@ class ElasticsearchService:
                         "type": "text",
                         "analyzer": "post_with_formula_analyser",
                     },
+                    "text_without_html": {
+                        "type": "text",
+                        "analyzer": "post_without_formula_analyser",
+                    },
                     "text_without_formula": {
                         "type": "text",
                         "analyzer": "post_without_formula_analyser",

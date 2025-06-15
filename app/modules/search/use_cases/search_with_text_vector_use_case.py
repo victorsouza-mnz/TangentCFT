@@ -26,16 +26,18 @@ class SearchTextVectorUseCase:
             Lista dos posts encontrados, com informações relevantes
         """
         try:
-            # Gerar o vetor de embedding para a consulta
-            # TODO: dar um .tolist() no query_vector caso precise
-            query_vector = self.get_text_vector_use_case.execute(query)
 
+            # Gerar o vetor de embedding para a consulta
+            print("generating query vector")
+            query_vector = self.get_text_vector_use_case.execute(query)
+            print("query_vector: ", query_vector)
             if query_vector is None:
                 print("Failed to generate embedding for query")
                 return []
 
             # Prepara a query de similaridade vetorial
             # TODO verficar se a query com dense vector é feita dessa forma
+            print("preparing search query")
             search_query = {
                 "knn": {
                     "field": "text_without_formula_vector",
@@ -44,12 +46,12 @@ class SearchTextVectorUseCase:
                     "num_candidates": size * 2,
                 }
             }
-
+            print("searching... search query: ", search_query)
             # Executa a busca
-            results = self.elasticsearch_service.es.search(
-                index=self.elasticsearch_service.index_name, knn=search_query
+            results = self.elasticsearch_service.es.knn_search(
+                index=self.elasticsearch_service.posts_index_name, body=search_query
             )
-
+            print("results: ", results)
             # Extrai e formata os resultados
             hits = results["hits"]["hits"]
             formatted_results = []

@@ -1,5 +1,7 @@
 import re
 
+# TODO : remover informação de italic ex na formula id: 63811
+
 
 # Função principal que limpa o texto, removendo espaços extras e processando fórmulas matemáticas
 # Input: "Considere a equação $x^2 + y^2 = r^2$ do círculo."
@@ -28,7 +30,13 @@ def clean_text(text: str) -> str:
 def treat_formula(text: str) -> str:
     # Padrão para capturar expressões matemáticas entre $$ ou $
     # Ex: "$x+y$" ou "$$\int f(x) dx$$"
-    pattern = re.compile(r"\$\$(.*?)\$\$|\$(.*?)\$", re.DOTALL)
+    pattern = re.compile(
+        r"(\$\$[\s\S]*?\$\$"  # $$...$$
+        r"|\$[^\n]*?\$"  # $...$
+        r"|\\\[.*?\\\]"  # \[...\]
+        r"|\\begin\{.*?\}[\s\S]*?\\end\{.*?\})",  # \begin{...}...\end{...}
+        re.MULTILINE,
+    )
 
     def replacer(match):
         formula = match.group(0)
