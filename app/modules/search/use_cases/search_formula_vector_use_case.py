@@ -47,6 +47,7 @@ class SearchFormulaVectorUseCase:
                 {
                     "score": hit["_score"],
                     "formula_id": source.get("formula_id"),
+                    "post_id": source.get("post_id"),
                     "document_id": hit["_id"],
                 }
             )

@@ -9,11 +9,8 @@ from app.modules.search.use_cases.search_with_text_combined_with_formula_vector_
     make_search_with_text_combined_with_formula_vector_use_case,
 )
 
-from app.modules.embedding.use_cases.get_text_vector import (
-    make_get_text_vector_use_case,
-)
-from app.modules.search.use_cases.search_text_use_case import (
-    make_search_text_use_case,
+from app.modules.search.use_cases.search_text_field_use_case import (
+    make_search_text_field_use_case,
 )
 from app.modules.search.use_cases.search_text_with_treated_formulas_use_case import (
     make_search_text_with_treated_formulas_use_case,
@@ -23,9 +20,6 @@ from app.modules.search.use_cases.search_with_text_vector_use_case import (
 )
 from app.modules.embedding.use_cases.get_slt_opt_and_type_combined_formula_vector_use_case import (
     make_get_slt_opt_and_type_combined_formula_vector_use_case,
-)
-from app.modules.search.use_cases.search_formula_vector_use_case import (
-    make_search_formula_vector_use_case,
 )
 
 from app.modules.shared.parse_html_to_text import parse_html_to_text
@@ -64,7 +58,7 @@ class SearchReqParams(BaseModel):
 
 @app.post("/search-pure-text")
 async def search_pure_text(params: SearchReqParams):
-    result = make_search_text_use_case().execute(params.query, 10)
+    result = make_search_text_field_use_case().execute(params.query, 10)
     return {"status": "ok", "top_posts": result}
 
 
@@ -87,12 +81,14 @@ async def search_text_vector(params: SearchReqParams):
 async def search_with_text_combined_with_combined_formula_vector(
     params: SearchReqParams,
 ):
-    text_without_formulas, formulas, formula_positions = (
+    # 1. Separar texto e fórmulas
+    text_without_formulas, formulas, _ = (
         make_separate_text_and_formulas_use_case().execute(params.query)
     )
 
-    # Store vectors as array of objects, each containing all vector types for one formula
+    # 2. Gerar vetores SLT para as fórmulas
     all_formula_vectors = []
+
     for formula in formulas:
         vectors_dict = (
             make_get_slt_opt_and_type_combined_formula_vector_use_case().execute(
@@ -102,32 +98,44 @@ async def search_with_text_combined_with_combined_formula_vector(
         if vectors_dict:
             all_formula_vectors.append(vectors_dict["slt_vector"])
 
-    result_size = 10
-
-    text_results = make_search_text_use_case().execute(
-        text_without_formulas, result_size, field="text_without_formula"
+    # 3. Criar use case de combinação
+    combined_search_use_case = (
+        make_search_with_text_combined_with_formula_vector_use_case(
+            text_without_formulas,
+            all_formula_vectors,
+        )
     )
 
-    formula_results = []
-    for formula_vector in all_formula_vectors:
-        formula_results.append(
-            make_search_formula_vector_use_case(vector_type="slt_vector").execute(
-                formula_vector, result_size
-            )
+    # 4. Executar os approaches
+    result_size = 10
+
+    result_approach_1 = combined_search_use_case.approach_1_individual_formula_max(
+        top_k=result_size
+    )
+    result_approach_2 = combined_search_use_case.approach_2_mean_formula_score(
+        top_k=result_size
+    )
+    result_approach_3 = (
+        combined_search_use_case.approach_3_individual_formula_max_weighted(
+            top_k=result_size
         )
+    )
+    result_approach_4 = combined_search_use_case.approach_4_mean_formula_score_weighted(
+        top_k=result_size
+    )
 
-    # TODO combinar os resultados de text_results e formula_results baseado nos approachs
-
-    # result_approach_1 = use_case.approach_1_individual_formula_max(result_size)
-
-    # result_approach_2 = use_case.approach_2_mean_formula_score(result_size)
-
-    # result_approach_3 = use_case.approach_3_individual_formula_max_weighted(result_size)
-
-    # result_approach_4 = use_case.approach_4_mean_formula_score_weighted(result_size)
-
+    # 5. Retornar resultados de todos os approaches
     return {
         "status": "ok",
+        "query": params.query,
+        "text_without_formulas": text_without_formulas,
+        "num_formulas": len(formulas),
+        "results": {
+            "approach_1_individual_formula_max": result_approach_1,
+            "approach_2_mean_formula_score": result_approach_2,
+            "approach_3_individual_formula_max_weighted": result_approach_3,
+            "approach_4_mean_formula_score_weighted": result_approach_4,
+        },
     }
 
 
@@ -148,16 +156,7 @@ async def search_with_text_without_formulas_vector_combined_with_slt_type_formul
     pass
 
 
-@app.post("/search-with-latex-text-search-vector-combined-with-slt-type-formula-vector")
-async def search_with_latex_text_search_vector_combined_with_combined_type_formula_vector(
-    params: SearchReqParams,
-):
-    pass
-
-
-@app.post(
-    "/search-with-latex-text-search-vector-combined-with-combined-type-formula-vector"
-)
+@app.post("/search-with-text-without-formula-combined-with-formula-vector")
 async def search_with_latex_text_search_vector_combined_with_combined_type_formula_vector(
     params: SearchReqParams,
 ):

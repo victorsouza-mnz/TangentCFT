@@ -8,7 +8,16 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - cluster.routing.allocation.disk.watermark.low=2gb
+      - cluster.routing.allocation.disk.watermark.high=1gb
+      - cluster.routing.allocation.disk.watermark.flood_stage=512mb
+      - cluster.info.update.interval=1m
+
     ports:
       - 9200:9200
     volumes:
-      - /mnt/victor2/elasticsearch_data:/usr/share/elasticsearch/data
+      - type: bind
+        source: /mnt/victor2/elasticsearch_data
+        target: /usr/share/elasticsearch/data
+        bind:
+          propagation: rshared

@@ -2,7 +2,7 @@ from services.elasticsearch_service import ElasticsearchService
 from typing import List, Dict, Any
 
 
-class SearchTextUseCase:
+class SearchTextFieldUseCase:
     """
     Use case para buscar posts usando texto puro no Elasticsearch.
     """
@@ -55,9 +55,9 @@ class SearchTextUseCase:
             raise e
 
 
-def make_search_text_use_case():
+def make_search_text_field_use_case():
     """
     Factory function para criar o caso de uso de busca de texto puro.
     """
     elasticsearch_service = ElasticsearchService()
-    return SearchTextUseCase(elasticsearch_service)
+    return SearchTextFieldUseCase(elasticsearch_service)
