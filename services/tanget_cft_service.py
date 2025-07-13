@@ -25,7 +25,7 @@ class TangentCFTService:
         """
         self.model = TangentCftModel()
         if model_file_path is not None:
-            print("Loading the model")
+            print("Loading the model : ", model_file_path)
             self.model.load_model(model_file_path)
 
         # Usar o singleton EncoderManager

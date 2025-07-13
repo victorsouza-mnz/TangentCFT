@@ -70,6 +70,14 @@ class ElasticsearchService:
                     "text_without_formula_vector"
                 ].tolist()
 
+            # Process text_without_html_vector if present
+            if "text_without_html_vector" in post and isinstance(
+                post["text_without_html_vector"], np.ndarray
+            ):
+                post["text_without_html_vector"] = post[
+                    "text_without_html_vector"
+                ].tolist()
+
             # Process formula vectors if present
             if "formula_vectors" in post:
                 processed_vectors = []
@@ -174,6 +182,14 @@ class ElasticsearchService:
                 ):
                     update["text_without_formula_vector"] = update[
                         "text_without_formula_vector"
+                    ].tolist()
+
+                # Process text_without_html_vector if present
+                if "text_without_html_vector" in update and isinstance(
+                    update["text_without_html_vector"], np.ndarray
+                ):
+                    update["text_without_html_vector"] = update[
+                        "text_without_html_vector"
                     ].tolist()
 
                 # Process formula vectors if present
@@ -362,6 +378,12 @@ class ElasticsearchService:
                         "analyzer": "post_without_formula_analyser",
                     },
                     "text_without_formula_vector": {
+                        "type": "dense_vector",
+                        "dims": 384,
+                        "index": True,
+                        "similarity": "cosine",
+                    },
+                    "text_without_html_vector": {
                         "type": "dense_vector",
                         "dims": 384,
                         "index": True,

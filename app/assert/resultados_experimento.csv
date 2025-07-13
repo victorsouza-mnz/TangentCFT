@@ -1,0 +1,25 @@
+Algoritmo,Modificação,Modificação_Base,Total_Cases,Successful_Requests,Success_Rate_Percent,Found_in_Top_K,Hit_Rate_Percent,Avg_Response_Time_Seconds,Avg_Position_When_Found,All_Positions,Median_Position,Is_Truncated
+Texto Puro,text_with_formulas_replaced,text_with_formulas_replaced,20,20,100.0,8,40.0,25,4.75,"[7, 6, 9, 1, 1, 7, 6, 1]",6.0,False
+Texto Puro,text_with_formulas_replaced_truncated_50,text_with_formulas_replaced,20,20,100.0,7,35.0,0.02,6.71,"[3, 8, 9, 7, 9, 2, 9]",8.0,True
+Texto Puro,text_lightly_modified,text_lightly_modified,20,20,100.0,3,15.0,23,3.67,"[5, 1, 5]",5.0,False
+Texto Puro,text_lightly_modified_truncated_50,text_lightly_modified,20,20,100.0,4,20.0,19,9.0,"[8, 9, 10, 9]",9.0,True
+Texto Puro,text_semantically_modified,text_semantically_modified,20,20,100.0,1,5.0,23,2.0,[2],2.0,False
+Texto Puro,text_semantically_modified_truncated_50,text_semantically_modified,20,20,100.0,2,10.0,17,5.5,"[3, 8]",5.5,True
+Texto Puro,text_natural_language,text_natural_language,20,20,100.0,15,75.0,23,1.73,"[3, 2, 1, 1, 1, 1, 6, 1, 1, 4, 1, 1, 1, 1, 1]",1.0,False
+Texto Puro,text_natural_language_truncated_50,text_natural_language,20,20,100.0,13,65.0,18,3.15,"[4, 1, 4, 1, 4, 4, 1, 10, 1, 1, 1, 1, 8]",1.0,True
+Texto + Desambiguador,text_with_formulas_replaced,text_with_formulas_replaced,20,20,100.0,20,100.0,25,1.0,"[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]",1.0,False
+Texto + Desambiguador,text_with_formulas_replaced_truncated_50,text_with_formulas_replaced,20,20,100.0,14,70.0,19,2.21,"[1, 1, 1, 1, 2, 1, 1, 1, 5, 1, 1, 1, 10, 4]",1.0,True
+Texto + Desambiguador,text_lightly_modified,text_lightly_modified,20,20,100.0,18,90.0,24,1.06,"[2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]",1.0,False
+Texto + Desambiguador,text_lightly_modified_truncated_50,text_lightly_modified,20,20,100.0,10,50.0,19,1.6,"[1, 1, 1, 2, 1, 2, 1, 2, 1, 4]",1.0,True
+Texto + Desambiguador,text_semantically_modified,text_semantically_modified,20,20,100.0,8,40.0,24,2.62,"[2, 6, 1, 2, 1, 5, 2, 2]",2.0,False
+Texto + Desambiguador,text_semantically_modified_truncated_50,text_semantically_modified,20,20,100.0,3,15.0,18,2.67,"[3, 1, 4]",3.0,True
+Texto + Desambiguador,text_natural_language,text_natural_language,20,20,100.0,15,75.0,21,1.8,"[3, 3, 3, 1, 1, 3, 1, 1, 1, 5, 1, 1, 1, 1, 1]",1.0,False
+Texto + Desambiguador,text_natural_language_truncated_50,text_natural_language,20,20,100.0,11,55.0,19,1.82,"[3, 1, 1, 7, 1, 2, 1, 1, 1, 1, 1]",1.0,True
+Texto + Vetor de Formula,text_with_formulas_replaced,text_with_formulas_replaced,20,20,100.0,20,100.0,38242,1.0,"[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]",1.0,False
+Texto + Vetor de Formula,text_with_formulas_replaced_truncated_50,text_with_formulas_replaced,20,20,100.0,16,80.0,6642,1.88,"[1, 1, 2, 1, 1, 2, 1, 2, 1, 1, 9, 1, 1, 2, 3, 1]",1.0,True
+Texto + Vetor de Formula,text_lightly_modified,text_lightly_modified,20,20,100.0,20,100.0,31901,1.0,"[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]",1.0,False
+Texto + Vetor de Formula,text_lightly_modified_truncated_50,text_lightly_modified,20,20,100.0,15,75.0,6566,2.2,"[1, 2, 2, 1, 1, 1, 1, 2, 1, 1, 9, 1, 2, 7, 1]",1.0,True
+Texto + Vetor de Formula,text_semantically_modified,text_semantically_modified,20,20,100.0,15,75.0,28571,1.07,"[1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1]",1.0,False
+Texto + Vetor de Formula,text_semantically_modified_truncated_50,text_semantically_modified,20,20,100.0,10,50.0,3172,2.9,"[1, 2, 3, 1, 1, 5, 1, 10, 4, 1]",1.5,True
+Texto + Vetor de Formula,text_natural_language,text_natural_language,20,20,100.0,18,90.0,1132,1.44,"[6, 2, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]",1.0,False
+Texto + Vetor de Formula,text_natural_language_truncated_50,text_natural_language,20,20,100.0,19,95.0,987,2.32,"[1, 8, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 7, 1, 1, 1, 1, 10]",1.0,True

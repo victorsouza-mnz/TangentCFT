@@ -6,8 +6,8 @@ from app.modules.search.use_cases.search_formula_vector_use_case import (
     make_search_formula_vector_use_case,
 )
 
-from app.modules.search.use_cases.search_text_with_treated_formulas_use_case import (
-    make_search_text_with_treated_formulas_use_case,
+from app.modules.search.use_cases.search_with_text_vector_use_case import (
+    make_search_text_vector_use_case,
 )
 
 
@@ -45,8 +45,12 @@ class SearchWithTextCombinedWithFormulaVectorUseCase:
         Combina resultados de texto com o maior score de qualquer fórmula individual dentro de um post.
         """
         # Busca textual
-        text_results = make_search_text_field_use_case().execute(
-            self.text, top_k * 3, field="text_without_formula"
+        text_results = make_search_text_vector_use_case().execute(
+            self.text, top_k * 3, field_name="text_without_formula_vector"
+        )
+
+        text_results += make_search_text_field_use_case().execute(
+            "text_without_formula"
         )
 
         text_map = {str(r["post_id"]): r["score"] for r in text_results}
@@ -75,7 +79,6 @@ class SearchWithTextCombinedWithFormulaVectorUseCase:
         for post_id in all_post_ids:
             t_score = text_map.get(post_id, 0)
             f_score = formula_map.get(post_id, 0)
-            print("post_id:", post_id, "t_score:", t_score, "f_score:", f_score)
             combined_scores[post_id] = weighted_score(t_score, f_score, alpha, beta)
 
         # Monta dicionário de docs, sem sobrescrever
@@ -113,9 +116,15 @@ class SearchWithTextCombinedWithFormulaVectorUseCase:
         """
         Combina os resultados de texto com a média dos scores de todas as fórmulas do post.
         """
-        text_results = make_search_text_field_use_case().execute(
-            self.text, top_k * 3, field="text_without_formula"
+        # Busca textual
+        text_results = make_search_text_vector_use_case().execute(
+            self.text, top_k * 3, field_name="text_without_formula_vector"
         )
+
+        text_results += make_search_text_field_use_case().execute(
+            "text_without_formula"
+        )
+
         text_map = {str(r["post_id"]): r["score"] for r in text_results}
 
         formula_results_nested = []
@@ -177,9 +186,15 @@ class SearchWithTextCombinedWithFormulaVectorUseCase:
         """
         Igual ao approach 1, mas aplica um peso proporcional ao tamanho da fórmula em cada score.
         """
-        text_results = make_search_text_field_use_case().execute(
-            self.text, top_k * 3, field="text_without_formula"
+        # Busca textual
+        text_results = make_search_text_vector_use_case().execute(
+            self.text, top_k * 3, field_name="text_without_formula_vector"
         )
+
+        text_results += make_search_text_field_use_case().execute(
+            "text_without_formula"
+        )
+
         text_map = {str(r["post_id"]): r["score"] for r in text_results}
 
         formula_map = {}
@@ -237,9 +252,15 @@ class SearchWithTextCombinedWithFormulaVectorUseCase:
         """
         Igual ao approach 2, mas cada score de fórmula é ponderado pelo seu tamanho.
         """
-        text_results = make_search_text_field_use_case().execute(
-            self.text, top_k * 3, field="text_without_formula"
+        # Busca textual
+        text_results = make_search_text_vector_use_case().execute(
+            self.text, top_k * 3, field_name="text_without_formula_vector"
         )
+
+        text_results += make_search_text_field_use_case().execute(
+            "text_without_formula"
+        )
+
         text_map = {str(r["post_id"]): r["score"] for r in text_results}
 
         formula_score_map: dict[str, list[float]] = {}

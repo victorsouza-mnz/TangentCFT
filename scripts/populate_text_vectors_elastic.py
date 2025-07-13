@@ -42,14 +42,30 @@ def save_checkpoint(last_post_id):
 def fetch_posts_from_elastic(last_post_id, size=BATCH_SIZE):
     """
     Busca posts do Elasticsearch com post_id maior que o last_post_id
-    e que não possuem text_without_formula_vector populado.
+    e que não possuem ambos os vetores populados.
     """
     body = {
         "size": size,
         "query": {
             "bool": {
                 "must": [{"range": {"post_id": {"gt": last_post_id}}}],
-                "must_not": [{"exists": {"field": "text_without_formula_vector"}}],
+                "should": [
+                    {
+                        "bool": {
+                            "must_not": [
+                                {"exists": {"field": "text_without_formula_vector"}}
+                            ]
+                        }
+                    },
+                    {
+                        "bool": {
+                            "must_not": [
+                                {"exists": {"field": "text_without_html_vector"}}
+                            ]
+                        }
+                    },
+                ],
+                "minimum_should_match": 1,
             }
         },
         "sort": [{"post_id": "asc"}],
@@ -60,42 +76,66 @@ def fetch_posts_from_elastic(last_post_id, size=BATCH_SIZE):
 
 
 def process_batch(posts):
-    """Process a batch of posts to generate vectors all at once"""
+    """Process a batch of posts to generate vectors for both text fields"""
     if not posts:
         return []
 
     # Extract post IDs and texts
     post_ids = []
-    texts = []
+    html_texts = []
+    formula_texts = []
 
     for post in posts:
         post_id = post.get("post_id")
-        text = post.get("text_without_html")
+        text_without_html = post.get("text_without_html")
+        text_without_formula = post.get("text_without_formula")
 
-        if post_id and text:
+        if post_id and (text_without_html or text_without_formula):
             post_ids.append(post_id)
-            texts.append(text)
+            html_texts.append(text_without_html or "")
+            formula_texts.append(text_without_formula or "")
 
-    if not texts:
+    if not post_ids:
         return []
 
     try:
-        # Batch encode all texts at once (much faster than one by one)
-        vectors = text_vector_use_case.model.encode(
-            texts,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-            batch_size=32,
-            show_progress_bar=False,
-        )
+        updates = []
+
+        # Process HTML texts (batch encode for efficiency)
+        if any(html_texts):
+            html_vectors = text_vector_use_case.model.encode(
+                html_texts,
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+                batch_size=32,
+                show_progress_bar=False,
+            )
+
+        # Process formula texts (batch encode for efficiency)
+        if any(formula_texts):
+            formula_vectors = text_vector_use_case.model.encode(
+                formula_texts,
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+                batch_size=32,
+                show_progress_bar=False,
+            )
 
         # Create update objects
-        updates = []
         for i, post_id in enumerate(post_ids):
-            # TODO change the name of the field to text_without_formula_vector
-            updates.append(
-                {"post_id": post_id, "text_without_formula_vector": vectors[i].tolist()}
-            )
+            update_data = {"post_id": post_id}
+
+            # Add HTML vector if text exists
+            if html_texts[i]:
+                update_data["text_without_html_vector"] = html_vectors[i].tolist()
+
+            # Add formula vector if text exists
+            if formula_texts[i]:
+                update_data["text_without_formula_vector"] = formula_vectors[i].tolist()
+
+            # Only add if we have at least one vector to update
+            if len(update_data) > 1:  # More than just post_id
+                updates.append(update_data)
 
         return updates
     except Exception as e:
@@ -105,18 +145,36 @@ def process_batch(posts):
 
 def update_batch(elastic_service, batch):
     try:
-        elastic_service.bulk_update_text_vector(batch)
+        elastic_service.bulk_update_posts(batch)
     except Exception as e:
         print(f"Erro ao atualizar batch: {e}")
 
 
 def count_total_posts():
-    """Get approximate total count of posts without text vectors"""
+    """Get approximate total count of posts without both text vectors"""
     query = {
         "track_total_hits": True,
         "size": 0,
         "query": {
-            "bool": {"must_not": [{"exists": {"field": "text_without_formula_vector"}}]}
+            "bool": {
+                "should": [
+                    {
+                        "bool": {
+                            "must_not": [
+                                {"exists": {"field": "text_without_formula_vector"}}
+                            ]
+                        }
+                    },
+                    {
+                        "bool": {
+                            "must_not": [
+                                {"exists": {"field": "text_without_html_vector"}}
+                            ]
+                        }
+                    },
+                ],
+                "minimum_should_match": 1,
+            }
         },
     }
 

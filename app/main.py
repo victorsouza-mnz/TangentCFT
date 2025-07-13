@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
+from services.model_manager import model_manager
 
 from app.modules.search.use_cases.separate_text_and_formulas import (
     make_separate_text_and_formulas_use_case,
@@ -31,6 +32,21 @@ import traceback
 
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+async def startup_event():
+    """
+    Carrega todos os modelos na inicialização do servidor
+    """
+    print("🚀 Iniciando servidor e carregando modelos...")
+
+    # Pré-carrega todos os modelos
+    model_manager.get_model("SLT")
+    model_manager.get_model("OPT")
+    model_manager.get_model("SLT_TYPE")
+
+    print("✅ Todos os modelos carregados! Servidor pronto.")
 
 
 @app.middleware("http")
@@ -71,7 +87,6 @@ async def search_text_with_treated_formulas(params: SearchReqParams):
 @app.post("/search-text-vector")
 async def search_text_vector(params: SearchReqParams):
     text_without_html = parse_html_to_text(params.query)
-    print("text_without_html: ", text_without_html)
     result = make_search_text_vector_use_case().execute(text_without_html, 10)
     return {"status": "ok", "top_posts": result}
 
@@ -139,31 +154,7 @@ async def search_with_text_combined_with_combined_formula_vector(
     }
 
 
-# TODO :  implements with vector
-@app.post(
-    "/search-with-text-without-formulas-vector-combined-with-combined-formula-vector"
-)
-async def search_with_text_without_formulas_vector_combined_with_slt_formula_vector(
-    params: SearchReqParams,
-):
-    pass
-
-
-@app.post("/search-with-latex-text-search-combined-with-combined-type-formula-vector")
-async def search_with_text_without_formulas_vector_combined_with_slt_type_formula_vector(
-    params: SearchReqParams,
-):
-    pass
-
-
-@app.post("/search-with-text-without-formula-combined-with-formula-vector")
-async def search_with_latex_text_search_vector_combined_with_combined_type_formula_vector(
-    params: SearchReqParams,
-):
-    pass
-
-
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, timeout_keep_alive=1000)

@@ -29,25 +29,18 @@ class SearchTextWithTreatedFormulasUseCase:
             Lista dos posts encontrados, com informações relevantes
         """
         try:
-            print("query: ", query)
             # Remove <span> tags and add $ delimiters and remove other html tags
             text_query = parse_html_to_text_with_latex(query)
-            print("text_query: ", text_query)
 
             # Sanitize latex formulas in the query for more accurate search
             cleaned_query = clean_text(text_query)
-            print("cleaned_query: ", cleaned_query)
             raw_formulas = get_latex_formulas_larger_than_5_with_only_dollar_delimiters(
                 text_query
             )
 
-            print("raw_formulas: ", raw_formulas)
-
             cleaned_formulas = [
                 clean_text(f) for f in raw_formulas if len(f.strip()) > 5
             ]
-
-            print("cleaned_formulas: ", cleaned_formulas)
 
             should_clauses = [{"match": {"text_latex_search": cleaned_query}}] + [
                 {
@@ -70,7 +63,6 @@ class SearchTextWithTreatedFormulasUseCase:
             # Processa os hits
             hits = results["hits"]["hits"]
             formatted_results = []
-            print("hits: ", hits[0]["_source"].get("text_latex_search"))
             for hit in hits:
                 source = hit["_source"]
                 formatted_results.append(

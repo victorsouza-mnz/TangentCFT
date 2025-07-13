@@ -28,7 +28,6 @@ class SearchTextFieldUseCase:
             # Prepara a query para buscar no campo especificado
             search_query = {"query": {"match": {field: query}}, "size": size}
 
-            print("search_query: ", search_query)
             # Executa a busca
             results = self.elasticsearch_service.es.search(
                 index=self.elasticsearch_service.posts_index_name, body=search_query
